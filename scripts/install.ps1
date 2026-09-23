@@ -77,7 +77,17 @@ try {
         } else {
             $codexConfig = Join-Path $configDir 'codex.json'
             if (-not (Test-Path $codexConfig) -or $Reconfigure) { Copy-Item -Force $configFile $codexConfig }
-            & $tbExe hook codex
+            $customize = if ($env:TB_CUSTOMIZE_CODEX) { $env:TB_CUSTOMIZE_CODEX } else { Read-Host 'Customize Codex completion notifications? [y/N]' }
+            if ($customize -match '^(y|yes|1)$') {
+                $hookTopic = if ($env:TB_CODEX_TOPIC) { $env:TB_CODEX_TOPIC } else { Read-Host 'Topic name (e.g. Training)' }
+                $hookTitle = if ($env:TB_CODEX_TITLE) { $env:TB_CODEX_TITLE } else { Read-Host 'Title template [{topic} finished]' }
+                $hookBody = if ($env:TB_CODEX_BODY) { $env:TB_CODEX_BODY } else { Read-Host 'Body template [{topic} task finished; Duration: {duration}]' }
+                $hookOutput = if ($env:TB_CODEX_FINAL_OUTPUT) { $env:TB_CODEX_FINAL_OUTPUT } else { Read-Host 'Include final Codex answer on phone? [y/N]' }
+                $outputMode = if ($hookOutput -match '^(y|yes|1|on)$') { 'on' } else { 'off' }
+                & $tbExe hook codex --topic $hookTopic --title $hookTitle --body $hookBody --final-output $outputMode
+            } else {
+                & $tbExe hook codex
+            }
             if ($LASTEXITCODE -ne 0) { throw 'Codex Hook installation failed' }
             & codex mcp get taskbridge *> $null
             if ($LASTEXITCODE -eq 0) {

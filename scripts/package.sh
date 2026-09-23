@@ -19,6 +19,8 @@ for target in linux-amd64 darwin-amd64 darwin-arm64 windows-amd64; do
     cp "dist/$target/tb" "$package_dir/"
   fi
   cp README.md README.zh-CN.md LICENSE "$package_dir/"
+  mkdir -p "$package_dir/docs"
+  cp docs/deployment.md docs/deployment.zh-CN.md docs/architecture.md "$package_dir/docs/"
   if [[ "$target" == windows-* ]]; then
     (cd "$staging" && zip -qr "$project_root/release/taskbridge-$target.zip" "taskbridge-$target")
   else

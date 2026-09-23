@@ -42,9 +42,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '22'
+      - name: Test Windows client
+        run: go test ./...
       - name: Test Cloudflare setup wizard
         run: node --test test/setup_smoke.mjs
       - name: Parse PowerShell installer

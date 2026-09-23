@@ -90,6 +90,12 @@ async function main() {
     try { run(wrangler, ['whoami', '--json'], { capture: true }); }
     catch {
       if (!stdin.isTTY) throw new Error('Cloudflare login required: run npx wrangler login, then retry');
+      console.log('\nCloudflare account setup:');
+      console.log('1. Open https://dash.cloudflare.com/sign-up');
+      console.log('2. Enter your email and password, then create the account.');
+      console.log('3. Open the verification email and verify your address.');
+      console.log('4. Return here; Wrangler will open a browser to authorize this computer.');
+      await ask('Press Enter after registration or if you already have an account');
       run(wrangler, ['login']);
       run(wrangler, ['whoami', '--json'], { capture: true });
     }

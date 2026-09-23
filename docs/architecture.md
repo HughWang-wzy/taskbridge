@@ -24,6 +24,8 @@ flowchart LR
 | Watchdog LOST/recovery | D1 | Any online relay |
 | MCP question | D1 question and notification | MCP host attempts immediate relay; another relay can take over |
 
+For Codex turns, a local `UserPromptSubmit` Hook timestamps the start. The `Stop` Hook renders a configurable notification with that duration and can optionally append `last_assistant_message`. This final text is never sent unless the client opts in. If the start Hook did not run, duration is `unknown`.
+
 Relays use a two-minute lease and claim token. ACK succeeds only for the current claim. A publish that succeeds while ACK fails may be published again after lease expiry, so external delivery is **at least once**. Notification IDs and task events are idempotent in D1.
 
 ## Task state and Watchdog

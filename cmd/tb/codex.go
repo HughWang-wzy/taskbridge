@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -15,16 +16,111 @@ import (
 )
 
 type hookInput struct {
-	SessionID string `json:"session_id"`
-	TurnID    string `json:"turn_id"`
-	Event     string `json:"hook_event_name"`
-	ToolName  string `json:"tool_name"`
-	ToolUseID string `json:"tool_use_id"`
-	ToolInput struct {
+	SessionID            string `json:"session_id"`
+	TurnID               string `json:"turn_id"`
+	Event                string `json:"hook_event_name"`
+	ToolName             string `json:"tool_name"`
+	ToolUseID            string `json:"tool_use_id"`
+	CWD                  string `json:"cwd"`
+	LastAssistantMessage string `json:"last_assistant_message"`
+	ToolInput            struct {
 		Questions []struct {
 			Title string `json:"title"`
 		} `json:"questions"`
 	} `json:"tool_input"`
+}
+
+func configureCodexHook(c *Config, args []string) error {
+	f := flag.NewFlagSet("hook codex", flag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	topic := f.String("topic", c.CodexTopic, "notification topic name")
+	title := f.String("title", c.CodexStopTitle, "Stop notification title template")
+	body := f.String("body", c.CodexStopBody, "Stop notification body template")
+	final := f.String("final-output", "", "on or off")
+	if e := f.Parse(args); e != nil {
+		return fmt.Errorf("usage: tb hook codex [--topic TEXT] [--title TEMPLATE] [--body TEMPLATE] [--final-output on|off]: %w", e)
+	}
+	if f.NArg() > 0 {
+		return fmt.Errorf("unexpected hook argument: %s", f.Arg(0))
+	}
+	if *final != "" && *final != "on" && *final != "off" {
+		return fmt.Errorf("--final-output must be on or off")
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	c.CodexTopic, c.CodexStopTitle, c.CodexStopBody = *topic, *title, *body
+	if *final != "" {
+		c.CodexFinalOutput = *final == "on"
+	}
+	return saveConfig(*c)
+}
+
+func turnStartPath(input hookInput) string {
+	key := sha256.Sum256([]byte(input.SessionID + "\x00" + input.TurnID))
+	return filepath.Join(filepath.Dir(configPath()), "turn-start", fmt.Sprintf("%x", key))
+}
+
+func recordTurnStart(input hookInput) {
+	path := turnStartPath(input)
+	if os.MkdirAll(filepath.Dir(path), 0700) == nil {
+		_ = os.WriteFile(path, []byte(fmt.Sprint(time.Now().UnixNano())), 0600)
+	}
+}
+
+func turnDuration(input hookInput) string {
+	path := turnStartPath(input)
+	b, e := os.ReadFile(path)
+	if e != nil {
+		return "unknown"
+	}
+	_ = os.Remove(path)
+	var started int64
+	if _, e = fmt.Sscan(string(b), &started); e != nil || started <= 0 {
+		return "unknown"
+	}
+	d := time.Since(time.Unix(0, started))
+	if d < 0 {
+		return "unknown"
+	}
+	return d.Truncate(time.Second).String()
+}
+
+func limitedFinalOutput(message string) string {
+	message = strings.TrimSpace(message)
+	runes := []rune(message)
+	if len(runes) > 2000 {
+		return string(runes[:2000]) + "… [truncated]"
+	}
+	return message
+}
+
+func stopNotification(c Config, input hookInput) ntfyMessage {
+	topic := strings.TrimSpace(c.CodexTopic)
+	if topic == "" {
+		topic = filepath.Base(input.CWD)
+	}
+	if topic == "" || topic == "." {
+		topic = "Codex"
+	}
+	title := c.CodexStopTitle
+	if title == "" {
+		title = "✅ {topic} finished"
+	}
+	body := c.CodexStopBody
+	if body == "" {
+		body = "{topic} task finished\nDuration: {duration}"
+	}
+	output := ""
+	if c.CodexFinalOutput {
+		output = limitedFinalOutput(input.LastAssistantMessage)
+	}
+	replacer := strings.NewReplacer("{topic}", topic, "{duration}", turnDuration(input), "{output}", output, "{session}", input.SessionID, "{turn}", input.TurnID)
+	title, body = replacer.Replace(title), replacer.Replace(body)
+	if c.CodexFinalOutput && output != "" && !strings.Contains(c.CodexStopBody, "{output}") {
+		body += "\n\n" + output
+	}
+	return ntfyMessage{Title: title, Message: body, Priority: 3}
 }
 
 func questionMarkerPath(question string) string {
@@ -48,6 +144,10 @@ func handleHook(c Config, in io.Reader, errOut io.Writer) int {
 	if input.SessionID == "" || input.TurnID == "" {
 		return 0
 	}
+	if input.Event == "UserPromptSubmit" {
+		recordTurnStart(input)
+		return 0
+	}
 	if input.Event == "PreToolUse" && (input.ToolName == "request_user_input_async" || input.ToolName == "request_user_input") {
 		if len(input.ToolInput.Questions) == 0 || strings.TrimSpace(input.ToolInput.Questions[0].Title) == "" {
 			return 0
@@ -63,6 +163,7 @@ func handleHook(c Config, in io.Reader, errOut io.Writer) int {
 		return 0
 	}
 	if input.Event == "Interrupt" {
+		_ = os.Remove(turnStartPath(input))
 		if e := spoolCodexInterrupt(input); e != nil {
 			fmt.Fprintln(errOut, "TaskBridge interrupt spool:", e)
 		}
@@ -82,16 +183,18 @@ func handleHook(c Config, in io.Reader, errOut io.Writer) int {
 		}
 		_ = os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339)), 0600)
 	}
+	var notice ntfyMessage
+	if input.Event == "Stop" {
+		notice = stopNotification(c, input)
+	}
 	event := map[string]any{"session_id": input.SessionID, "turn_id": input.TurnID, "event": input.Event}
 	data, e := api(c, "POST", "/v1/codex/events", event)
 	if e != nil {
 		fmt.Fprintln(errOut, "TaskBridge hook:", e)
 		_ = queue(c, "POST", "/v1/codex/events", event)
 		if input.Event != "PostToolUse" {
-			title := "✅ Codex finished"
-			priority := 3
 			id := fmt.Sprintf("codex:%x", sha256.Sum256([]byte(input.SessionID+"\x00"+input.TurnID+"\x00"+input.Event)))
-			_ = queue(c, "POST", "/v1/notifications", map[string]any{"id": id, "payload": ntfyMessage{Title: title, Message: "Session: " + input.SessionID + "\nTurn: " + input.TurnID, Priority: priority}})
+			_ = queue(c, "POST", "/v1/notifications", map[string]any{"id": id, "payload": notice})
 		}
 		return 0
 	}
@@ -100,10 +203,8 @@ func handleHook(c Config, in io.Reader, errOut io.Writer) int {
 	}
 	_ = json.Unmarshal(data, &result)
 	if input.Event != "PostToolUse" && !result.Duplicate {
-		title := "✅ Codex finished"
-		priority := 3
 		id := fmt.Sprintf("codex:%x", sha256.Sum256([]byte(input.SessionID+"\x00"+input.TurnID+"\x00"+input.Event)))
-		if noticeErr := sendSourceNotification(c, id, ntfyMessage{Title: title, Message: "Session: " + input.SessionID + "\nTurn: " + input.TurnID, Priority: priority}, errOut); noticeErr != nil {
+		if noticeErr := sendSourceNotification(c, id, notice, errOut); noticeErr != nil {
 			fmt.Fprintln(errOut, "TaskBridge hook:", noticeErr)
 		}
 	}
@@ -137,7 +238,7 @@ func installCodexHooks(out io.Writer) error {
 	if runtime.GOOS == "windows" {
 		command = "\"" + executable + "\" hook codex event"
 	}
-	for _, event := range []string{"Stop", "Interrupt", "PostToolUse", "PreToolUse"} {
+	for _, event := range []string{"Stop", "Interrupt", "PostToolUse", "PreToolUse", "UserPromptSubmit"} {
 		existing, _ := hooks[event].([]any)
 		filtered := make([]any, 0, len(existing)+1)
 		for _, entry := range existing {

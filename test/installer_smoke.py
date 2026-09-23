@@ -99,6 +99,20 @@ def main():
             assert (home / ".codex/hooks.json").is_file()
             assert not (home / ".codex/AGENTS.md").exists()
 
+            env.update({
+                "TB_CUSTOMIZE_CODEX": "1",
+                "TB_CODEX_TOPIC": "Training",
+                "TB_CODEX_TITLE": "{topic} done",
+                "TB_CODEX_BODY": "Elapsed {duration}",
+                "TB_CODEX_FINAL_OUTPUT": "1",
+            })
+            result = run_installer(env)
+            assert result.returncode == 0, result.stderr
+            codex_config = json.loads((config_path.parent / "codex.json").read_text())
+            assert codex_config["codex_topic"] == "Training"
+            assert codex_config["codex_stop_title"] == "{topic} done"
+            assert codex_config["codex_final_output"] is True
+
             bad_release = root / "bad-release"
             bad_release.mkdir()
             shutil.copy(ROOT / "release/SHA256SUMS", bad_release / "SHA256SUMS")

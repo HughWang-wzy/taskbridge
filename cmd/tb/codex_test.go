@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -65,6 +66,44 @@ func TestHookSendsStopEvent(t *testing.T) {
 	code := handleHook(Config{URL: server.URL, Token: "token", QueueDir: t.TempDir(), NtfyURL: ntfy.URL, NtfyTopic: "phone-topic"}, strings.NewReader(`{"session_id":"s1","turn_id":"t1","hook_event_name":"Stop"}`), &errOut)
 	if code != 0 || body["event"] != "Stop" || body["session_id"] != "s1" || published != 1 {
 		t.Fatalf("code=%d body=%v published=%d errors=%s", code, body, published, errOut.String())
+	}
+}
+
+func TestCodexStopTemplateDurationAndOptionalFinalOutput(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TB_CONFIG", filepath.Join(dir, "codex.json"))
+	var notices []ntfyMessage
+	ntfy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var message struct{ ntfyMessage }
+		if e := json.NewDecoder(r.Body).Decode(&message); e != nil {
+			t.Error(e)
+		}
+		notices = append(notices, message.ntfyMessage)
+		w.WriteHeader(200)
+	}))
+	defer ntfy.Close()
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ok":true,"duplicate":false}`))
+	}))
+	defer worker.Close()
+	c := Config{URL: worker.URL, Token: "token", NtfyURL: ntfy.URL, NtfyTopic: "phone-topic", CodexTopic: "training", CodexStopTitle: "{topic} done", CodexStopBody: "{topic} task finished in {duration}\n{output}", CodexFinalOutput: true}
+	var errOut bytes.Buffer
+	handleHook(c, strings.NewReader(`{"session_id":"s1","turn_id":"t1","hook_event_name":"UserPromptSubmit"}`), &errOut)
+	start := turnStartPath(hookInput{SessionID: "s1", TurnID: "t1"})
+	// Store a deterministic start time to verify duration rendering.
+	if e := os.WriteFile(start, []byte(fmt.Sprint(time.Now().Add(-95*time.Second).UnixNano())), 0600); e != nil {
+		t.Fatal(e)
+	}
+	input := `{"session_id":"s1","turn_id":"t1","hook_event_name":"Stop","last_assistant_message":"All tests passed"}`
+	handleHook(c, strings.NewReader(input), &errOut)
+	if len(notices) != 1 || notices[0].Title != "training done" || !strings.Contains(notices[0].Message, "1m35s") || !strings.Contains(notices[0].Message, "All tests passed") {
+		t.Fatalf("notices=%+v errors=%s", notices, errOut.String())
+	}
+	c.CodexFinalOutput = false
+	c.CodexStopBody = "{topic} finished; duration {duration}"
+	handleHook(c, strings.NewReader(`{"session_id":"s1","turn_id":"t2","hook_event_name":"Stop","last_assistant_message":"private answer"}`), &errOut)
+	if len(notices) != 2 || strings.Contains(notices[1].Message, "private answer") {
+		t.Fatalf("unexpected final output: %+v", notices)
 	}
 }
 

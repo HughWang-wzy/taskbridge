@@ -30,6 +30,10 @@ type Config struct {
 	MinSuccessSeconds int    `json:"min_success_seconds,omitempty"`
 	QueueDir          string `json:"-"`
 	HeartbeatSeconds  int    `json:"heartbeat_seconds,omitempty"`
+	CodexTopic        string `json:"codex_topic,omitempty"`
+	CodexStopTitle    string `json:"codex_stop_title,omitempty"`
+	CodexStopBody     string `json:"codex_stop_body,omitempty"`
+	CodexFinalOutput  bool   `json:"codex_final_output,omitempty"`
 }
 type queuedRequest struct {
 	Method string          `json:"method"`
@@ -339,6 +343,10 @@ func execute(args []string, in io.Reader, out, errOut io.Writer) int {
 		if len(args) >= 2 && args[1] == "codex" {
 			if len(args) >= 3 && args[2] == "event" {
 				return handleHook(c, in, errOut)
+			}
+			if e := configureCodexHook(&c, args[2:]); e != nil {
+				fmt.Fprintln(errOut, e)
+				return 2
 			}
 			if e := installCodexHooks(out); e != nil {
 				fmt.Fprintln(errOut, e)

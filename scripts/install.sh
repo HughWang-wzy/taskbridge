@@ -11,9 +11,33 @@ case "$(uname -s)-$(uname -m)" in
   *) echo "Unsupported platform. Build from source with scripts/build.sh." >&2; exit 2 ;;
 esac
 
-for command in curl tar awk; do
-  command -v "$command" >/dev/null 2>&1 || { echo "Missing command: $command" >&2; exit 2; }
+missing=()
+for program in curl tar awk; do
+  command -v "$program" >/dev/null 2>&1 || missing+=("$program")
 done
+if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+  missing+=("SHA-256 utility")
+fi
+if ((${#missing[@]})); then
+  echo "Missing installation tools: ${missing[*]}" >&2
+  if [[ "$(uname -s)" == Linux && -t 0 ]]; then
+    read -r -p 'Install required tools using this system package manager? [y/N] ' repair </dev/tty
+    if [[ "$repair" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+      if command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update && sudo apt-get install -y curl tar gawk coreutils
+      elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y curl tar gawk coreutils
+      fi
+    fi
+  fi
+  for program in curl tar awk; do
+    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.0/docs/deployment.zh-CN.md" >&2; exit 2; }
+  done
+  if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+    echo "Still missing: SHA-256 utility. See the deployment guide." >&2
+    exit 2
+  fi
+fi
 
 archive="taskbridge-$platform.tar.gz"
 work_dir="$(mktemp -d)"
@@ -44,7 +68,7 @@ fi
 
 prompt() {
   local label="$1" result
-  [[ -r /dev/tty ]] || { echo "Interactive terminal required for $label" >&2; return 1; }
+  [[ -t 0 ]] || { echo "Interactive terminal required for $label" >&2; return 1; }
   read -r -p "$label" result </dev/tty
   printf '%s' "$result"
 }
@@ -57,7 +81,7 @@ if [[ ! -f "$config_file" || "${TB_RECONFIGURE:-0}" == 1 ]]; then
   [[ -n "$worker_url" ]] || worker_url="$(prompt 'Worker URL: ')"
   [[ -n "$topic" ]] || topic="$(prompt 'ntfy topic: ')"
   if [[ -z "$token" ]]; then
-    [[ -r /dev/tty ]] || { echo "Interactive terminal required for client token" >&2; exit 1; }
+    [[ -t 0 ]] || { echo "Interactive terminal required for client token" >&2; exit 1; }
     read -r -s -p 'Device client token: ' token </dev/tty
     printf '\n' >/dev/tty
   fi
@@ -70,7 +94,7 @@ fi
 "$tb_path" doctor
 
 enable_codex="${TB_ENABLE_CODEX:-}"
-if [[ -z "$enable_codex" && -r /dev/tty ]]; then
+if [[ -z "$enable_codex" && -t 0 ]]; then
   enable_codex="$(prompt 'Install Codex Hooks and MCP? [y/N] ')"
 fi
 if [[ "$enable_codex" =~ ^[Yy]([Ee][Ss])?$|^1$ ]]; then
@@ -78,7 +102,24 @@ if [[ "$enable_codex" =~ ^[Yy]([Ee][Ss])?$|^1$ ]]; then
   if [[ ! -f "$config_dir/codex.json" || "${TB_RECONFIGURE:-0}" == 1 ]]; then
     install -m 600 "$config_file" "$config_dir/codex.json"
   fi
-  "$tb_path" hook codex
+  customize="${TB_CUSTOMIZE_CODEX:-}"
+  if [[ -z "$customize" && -t 0 ]]; then
+    customize="$(prompt 'Customize Codex completion notifications? [y/N] ')"
+  fi
+  if [[ "$customize" =~ ^[Yy]([Ee][Ss])?$|^1$ ]]; then
+    hook_topic="${TB_CODEX_TOPIC:-}"
+    hook_title="${TB_CODEX_TITLE:-}"
+    hook_body="${TB_CODEX_BODY:-}"
+    hook_output="${TB_CODEX_FINAL_OUTPUT:-}"
+    [[ -n "$hook_topic" ]] || hook_topic="$(prompt 'Topic name (e.g. Training): ')"
+    [[ -n "$hook_title" ]] || hook_title="$(prompt 'Title template [{topic} finished]: ')"
+    [[ -n "$hook_body" ]] || hook_body="$(prompt 'Body template [{topic} task finished; Duration: {duration}]: ')"
+    [[ -n "$hook_output" ]] || hook_output="$(prompt 'Include final Codex answer on phone? [y/N] ')"
+    [[ "$hook_output" =~ ^[Yy]([Ee][Ss])?$|^1$ ]] && hook_output=on || hook_output=off
+    "$tb_path" hook codex --topic "$hook_topic" --title "$hook_title" --body "$hook_body" --final-output "$hook_output"
+  else
+    "$tb_path" hook codex
+  fi
   if codex mcp get taskbridge >/dev/null 2>&1; then
     echo "TaskBridge MCP already exists; check its binary path with: codex mcp get taskbridge"
   else
@@ -88,7 +129,7 @@ if [[ "$enable_codex" =~ ^[Yy]([Ee][Ss])?$|^1$ ]]; then
 fi
 
 enable_relay="${TB_ENABLE_RELAY:-}"
-if [[ -z "$enable_relay" && -r /dev/tty ]]; then
+if [[ -z "$enable_relay" && -t 0 ]]; then
   enable_relay="$(prompt 'Start a background relay on this computer? [Y/n] ')"
 fi
 if [[ ! "$enable_relay" =~ ^[Nn]([Oo])?$|^0$ ]]; then
