@@ -1,0 +1,27 @@
+# Local credentials and Cloudflare deployment state
+.dev.vars*
+.env*
+!.dev.vars.example
+!.env.example
+.local/
+.wrangler/
+wrangler.jsonc
+
+# Dependencies, toolchains, and build output
+node_modules/
+.toolchain/
+dist/
+release/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+
+# Machine-specific editor settings and old local design notes
+.vscode/
+docs/init_task.md
+docs/relay_plan.md
+*.bak
+
+# Temporary files
+*.log
+*.tmp

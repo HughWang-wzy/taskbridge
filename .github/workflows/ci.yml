@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Test Go client
+        run: go test ./...
+      - name: Install Worker dependencies
+        run: npm ci
+      - name: Prepare local Worker binding
+        run: cp wrangler.example.jsonc wrangler.jsonc
+      - name: Test Worker
+        run: npm test
+      - name: Typecheck Worker
+        run: npm run typecheck
+      - name: Build release archives
+        run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskbridge-release-archives
+          path: release/

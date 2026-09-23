@@ -1,0 +1,23 @@
+{
+	"name": "taskbridge",
+	"version": "0.1.0",
+	"private": true,
+	"license": "MIT",
+	"description": "Cloudflare D1 task tracking and ntfy notifications with a cross-platform Go client",
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit",
+		"build:cli": "bash scripts/build.sh",
+		"package": "bash scripts/package.sh",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "^1.0.0",
+		"typescript": "^5.5.2",
+		"vitest": "~4.1.0",
+		"wrangler": "^4"
+	}
+}

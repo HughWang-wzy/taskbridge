@@ -1,0 +1,15 @@
+{
+  "name": "taskbridge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-23",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "taskbridge-db",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "vars": { "LOST_TIMEOUT_SECONDS": "420" },
+  "triggers": { "crons": ["*/2 * * * *"] }
+}
