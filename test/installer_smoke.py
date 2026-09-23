@@ -113,6 +113,43 @@ def main():
             assert codex_config["codex_stop_title"] == "{topic} done"
             assert codex_config["codex_final_output"] is True
 
+            if sys.platform != "darwin":
+                fake_id = fake_commands / "id"
+                fake_id.write_text("#!/bin/sh\nif [ \"$1\" = -u ]; then echo 0; else /usr/bin/id \"$@\"; fi\n")
+                fake_id.chmod(0o755)
+                fake_systemctl = fake_commands / "systemctl"
+                fake_systemctl.write_text(
+                    "#!/bin/sh\n"
+                    "if [ \"$2\" = show-environment ]; then [ \"$1\" = --system ] && [ \"$TB_FAKE_SYSTEMD\" = 1 ]; exit $?; fi\n"
+                    "if [ \"$2\" = is-active ]; then [ \"$3\" = --quiet ] || echo active; exit 0; fi\n"
+                    "printf '%s\\n' \"$*\" >> \"$TB_SYSTEMCTL_LOG\"\n"
+                )
+                fake_systemctl.chmod(0o755)
+                env.update({
+                    "TB_ENABLE_CODEX": "0",
+                    "TB_ENABLE_RELAY": "1",
+                    "TB_SYSTEMD_UNIT_DIR": str(root / "systemd-system"),
+                    "TB_SYSTEMCTL_LOG": str(root / "systemctl.log"),
+                    "TB_FAKE_SYSTEMD": "1",
+                })
+                result = run_installer(env)
+                assert result.returncode == 0, result.stderr
+                unit = (root / "systemd-system/taskbridge-relay.service").read_text()
+                assert "User=root" in unit
+                assert f"ExecStart={root / 'bin/tb'} relay --interval=20s" in unit
+                assert "--system enable --now taskbridge-relay.service" in (root / "systemctl.log").read_text()
+
+                fake_nohup = fake_commands / "nohup"
+                fake_nohup.write_text("#!/bin/sh\n/bin/sleep 20\n")
+                fake_nohup.chmod(0o755)
+                env["TB_FAKE_SYSTEMD"] = "0"
+                result = run_installer(env)
+                assert result.returncode == 0, result.stderr
+                assert "Temporary relay started" in result.stdout
+                pid_file = config_path.parent / "relay.pid"
+                assert pid_file.is_file()
+                os.kill(int(pid_file.read_text().strip()), 15)
+
             bad_release = root / "bad-release"
             bad_release.mkdir()
             shutil.copy(ROOT / "release/SHA256SUMS", bad_release / "SHA256SUMS")

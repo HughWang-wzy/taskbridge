@@ -11,13 +11,13 @@ Have a Cloudflare account, Git, and the ntfy app on your phone. The wizard can i
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 

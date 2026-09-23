@@ -31,7 +31,7 @@ if ((${#missing[@]})); then
     fi
   fi
   for program in curl tar awk; do
-    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.4/docs/deployment.zh-CN.md" >&2; exit 2; }
+    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.5/docs/deployment.zh-CN.md" >&2; exit 2; }
   done
   if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
     echo "Still missing: SHA-256 utility. See the deployment guide." >&2
@@ -132,13 +132,13 @@ enable_relay="${TB_ENABLE_RELAY:-}"
 if [[ -z "$enable_relay" && -t 0 ]]; then
   enable_relay="$(prompt 'Start a background relay on this computer? [Y/n] ')"
 fi
-if [[ ! "$enable_relay" =~ ^[Nn]([Oo])?$|^0$ ]]; then
-  if [[ "$(uname -s)" == Linux ]] && command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
-    unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-    mkdir -p "$unit_dir"
-    unit_file="$unit_dir/taskbridge-relay.service"
-    if [[ ! -e "$unit_file" || "${TB_RECONFIGURE:-0}" == 1 ]]; then
-      cat > "$unit_file" <<EOF
+start_user_systemd_relay() {
+  local unit_dir unit_file
+  unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  mkdir -p "$unit_dir" || return 1
+  unit_file="$unit_dir/taskbridge-relay.service"
+  if [[ ! -e "$unit_file" || "${TB_RECONFIGURE:-0}" == 1 ]]; then
+    cat > "$unit_file" <<EOF
 [Unit]
 Description=TaskBridge pending notification relay
 After=network-online.target
@@ -153,11 +153,85 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 EOF
+  fi
+  systemctl --user daemon-reload &&
+    systemctl --user enable --now taskbridge-relay.service &&
+    systemctl --user restart taskbridge-relay.service &&
+    systemctl --user is-active --quiet taskbridge-relay.service || return 1
+  echo "Relay started with systemd user service."
+}
+
+start_systemd_root_relay() {
+  local unit_dir unit_file
+  unit_dir="${TB_SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+  mkdir -p "$unit_dir" || return 1
+  unit_file="$unit_dir/taskbridge-relay.service"
+  if [[ -e "$unit_file" && "${TB_RECONFIGURE:-0}" != 1 ]] && ! grep -Fq "ExecStart=$tb_path relay" "$unit_file"; then
+    echo "Existing $unit_file belongs to another relay; leaving it untouched." >&2
+    return 1
+  fi
+  if [[ ! -e "$unit_file" || "${TB_RECONFIGURE:-0}" == 1 ]]; then
+    cat > "$unit_file" <<EOF
+[Unit]
+Description=TaskBridge pending notification relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment=HOME=$HOME
+Environment=TB_CONFIG=$config_file
+ExecStart=$tb_path relay --interval=20s
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  fi
+  systemctl --system daemon-reload &&
+    systemctl --system enable --now taskbridge-relay.service &&
+    systemctl --system restart taskbridge-relay.service &&
+    systemctl --system is-active --quiet taskbridge-relay.service || return 1
+  echo "Relay status: $(systemctl --system is-active taskbridge-relay.service) (system service)"
+}
+
+start_temporary_relay() {
+  local pid_file pid
+  command -v nohup >/dev/null 2>&1 || { echo "nohup is unavailable; cannot start a temporary relay." >&2; return 1; }
+  mkdir -p "$config_dir" || return 1
+  pid_file="$config_dir/relay.pid"
+  if [[ -f "$pid_file" ]]; then
+    pid="$(cat "$pid_file")"
+    if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null &&
+       ps -p "$pid" -o args= 2>/dev/null | grep -Fq "$tb_path relay"; then
+      echo "Temporary relay is already running (PID $pid)."
+      return 0
     fi
-    systemctl --user daemon-reload
-    systemctl --user enable --now taskbridge-relay.service
-    systemctl --user restart taskbridge-relay.service
-    echo "Relay status: $(systemctl --user is-active taskbridge-relay.service)"
+  fi
+  nohup "$tb_path" relay --interval=20s >> "$config_dir/relay.log" 2>&1 </dev/null &
+  pid=$!
+  sleep 1
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "Temporary relay exited; inspect $config_dir/relay.log" >&2
+    return 1
+  fi
+  printf '%s\n' "$pid" > "$pid_file"
+  echo "Temporary relay started (PID $pid). It will stop after this host reboots."
+}
+
+if [[ ! "$enable_relay" =~ ^[Nn]([Oo])?$|^0$ ]]; then
+  relay_started=0
+  if [[ "$(uname -s)" == Linux ]] && command -v systemctl >/dev/null 2>&1; then
+    if [[ "$(id -u)" == 0 ]] &&
+       systemctl --system show-environment >/dev/null 2>&1 && start_systemd_root_relay; then
+      relay_started=1
+    fi
+    if [[ "$relay_started" == 0 ]] &&
+       systemctl --user show-environment >/dev/null 2>&1 && start_user_systemd_relay; then
+      relay_started=1
+    fi
   elif [[ "$(uname -s)" == Darwin ]] && command -v launchctl >/dev/null 2>&1; then
     plist_dir="$HOME/Library/LaunchAgents"
     mkdir -p "$plist_dir"
@@ -176,11 +250,14 @@ EOF
     launchctl bootout "gui/$(id -u)" "$plist" >/dev/null 2>&1 || true
     if launchctl bootstrap "gui/$(id -u)" "$plist"; then
       echo "Relay started with launchd."
+      relay_started=1
     else
-      echo "launchd could not start relay now; it will be available at the next login." >&2
+      echo "launchd could not start relay now; trying a temporary process." >&2
     fi
-  else
-    echo "No supported service manager was found. Run '$tb_path relay' under your startup manager." >&2
+  fi
+  if [[ "$relay_started" == 0 ]]; then
+    echo "No persistent relay service is available; starting a temporary background relay." >&2
+    start_temporary_relay || echo "Run '$tb_path relay' under your own startup manager." >&2
   fi
 fi
 

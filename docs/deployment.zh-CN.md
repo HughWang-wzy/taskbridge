@@ -22,13 +22,13 @@
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -67,17 +67,17 @@ Remove-Item Env:TB_CONFIG
 Linux/macOS 客户端安装：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.sh)
 ```
 
 Windows PowerShell 客户端安装：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装器会校验发布包的 SHA-256、保存用户配置并运行 `tb doctor`。已有客户端配置默认保留。至少一台电脑需要运行 `tb relay`，失联等队列通知才能送达；中断通知先保存在发生中断的电脑上，该电脑也需运行 relay。
+安装器会校验发布包的 SHA-256、保存用户配置并运行 `tb doctor`。已有客户端配置默认保留。至少一台电脑需要运行 `tb relay`，失联等队列通知才能送达；中断通知先保存在发生中断的电脑上，该电脑也需运行 relay。选后台 relay 时，Linux 普通用户优先使用 systemd 用户服务；root 优先使用系统级 systemd 服务。若无可用服务管理器，安装器会启动临时后台进程，并明确提示**重启后不会自动恢复**；持久运行需配置该主机自己的启动管理器。
 
 ## 自定义 Codex 通知
 

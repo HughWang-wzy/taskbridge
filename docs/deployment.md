@@ -22,13 +22,13 @@ You complete signup and verification on Cloudflare's site; TaskBridge does not c
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -67,17 +67,17 @@ Transfer the displayed token privately. The new computer needs the Worker URL, t
 Linux/macOS client installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.sh)
 ```
 
 Windows PowerShell client installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The installer checks the release SHA-256 and runs `tb doctor`. It keeps an existing configuration by default. At least one computer must run `tb relay` to deliver queued notices. An interrupted Codex turn first spools locally, so that computer also needs a relay.
+The installer checks the release SHA-256 and runs `tb doctor`. It keeps an existing configuration by default. At least one computer must run `tb relay` to deliver queued notices. An interrupted Codex turn first spools locally, so that computer also needs a relay. On Linux, ordinary users get a systemd user service and root prefers a system service. If no service manager is available, the installer starts a temporary background relay and warns that it will not restart after a reboot; use the host's startup manager for persistence.
 
 ## Customize Codex alerts
 
