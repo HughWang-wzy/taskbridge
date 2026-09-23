@@ -1,8 +1,18 @@
 # TaskBridge
 
-TaskBridge 记录长时间运行的命令和 Codex 任务，并通过 ntfy 向手机发送完成、失败、提问和失联提醒。每位使用者在**自己的 Cloudflare 账户**部署服务端。
+**电脑跑任务，手机看结果。** 运行一个安装脚本，就能用 TaskBridge 把 Codex 任务、模型训练和其他长时间运行的命令接入手机通知。任务完成、失败或失联时，手机会收到提醒；离开电脑后，也能及时知道任务结果，不必反复回来查看终端。
+
+安装器会引导你在**自己的 Cloudflare 账户**部署服务，并连接手机 ntfy。首次部署包含账户授权和环境检查，实际耗时取决于你的网络与电脑环境。
 
 [English](README.md) · [部署与故障处理](docs/deployment.zh-CN.md) · [架构](docs/architecture.md) · [MIT 许可证](LICENSE)
+
+例如，安装完成后运行模型训练：
+
+```bash
+tb run -n "模型训练" -- python train.py
+```
+
+命令结束时，TaskBridge 会把结果推送到手机。安装 Codex Hook 后，也可以接收 Codex 任务提醒。
 
 ## 安装
 

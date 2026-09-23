@@ -1,8 +1,18 @@
 # TaskBridge
 
-TaskBridge tracks long-running commands and Codex turns and sends completion, failure, question, and lost-task alerts to your phone through ntfy. Each user deploys the server in **their own Cloudflare account**.
+**Run tasks on your computer. Get the result on your phone.** Run one installer to connect Codex tasks, model training, and other long-running commands to phone notifications. TaskBridge alerts you when a task finishes, fails, or loses contact, so you can step away from the terminal and still know the outcome.
+
+The installer guides you through deploying the service in **your own Cloudflare account** and connecting the ntfy app. First-time setup includes account authorization and environment checks, so the time required depends on your network and computer.
 
 [简体中文](README.zh-CN.md) · [Deployment guide](docs/deployment.md) · [Architecture](docs/architecture.md) · [MIT license](LICENSE)
+
+For example, after installation, run a training job:
+
+```bash
+tb run -n "Model training" -- python train.py
+```
+
+TaskBridge sends the result to your phone when the command ends. Codex Hooks can also send Codex task alerts.
 
 ## Install
 
