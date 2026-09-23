@@ -131,7 +131,7 @@ if ! git_ready || ! node_ready; then
   fi
 fi
 
-release_tag=v0.4.2
+release_tag=v0.4.3
 setup_dir="${TB_SETUP_DIR:-$HOME/taskbridge}"
 if [[ ! -e "$setup_dir" ]]; then
   git clone --branch "$release_tag" --depth 1 https://github.com/HughWang-wzy/taskbridge.git "$setup_dir"

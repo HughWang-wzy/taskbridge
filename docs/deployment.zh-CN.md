@@ -12,8 +12,8 @@
 
 1. 打开 [Cloudflare 注册页](https://dash.cloudflare.com/sign-up)，填写邮箱和密码，创建账户。
 2. 打开 Cloudflare 发送的验证邮件，完成邮箱验证。
-3. 返回首次部署向导，按 Enter；Wrangler 随后会打开浏览器，请登录并授权这台电脑。
-4. 回到终端，等待 `whoami` 验证通过。Worker 和 D1 会建立在当前登录的 Cloudflare 账户中。
+3. 返回首次部署向导，按 Enter。Wrangler 会在终端显示设备验证网址和短代码；用电脑或手机浏览器打开该网址，输入代码并授权。
+4. 回到终端，等待 `whoami` 验证通过。[Cloudflare 的设备授权流程](https://developers.cloudflare.com/workers/wrangler/commands/general/)不使用 `localhost:8976`，适用于远程 SSH 服务器。Worker 和 D1 会建立在当前登录的 Cloudflare 账户中。
 
 注册和邮箱验证必须由账户本人在 Cloudflare 页面完成；TaskBridge 不收集 Cloudflare 密码。[Cloudflare 的 D1 入门文档](https://developers.cloudflare.com/d1/get-started/)也把账户注册列为前提。
 
@@ -22,13 +22,13 @@
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/first-run.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -67,13 +67,13 @@ Remove-Item Env:TB_CONFIG
 Linux/macOS 客户端安装：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/install.sh)
 ```
 
 Windows PowerShell 客户端安装：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -101,7 +101,7 @@ Windows 将命令开头替换为 `& "$env:LOCALAPPDATA\Programs\TaskBridge\tb.ex
 ## 故障处理
 
 - `node` 版本低于 22 或 `npm` 缺失：使用上面的环境修复提示，打开新终端后重新运行首次部署脚本。
-- `wrangler whoami` 失败：检查网络，完成注册和邮箱验证；在部署目录重跑 `bash scripts/first-run.sh`，向导会重新引导登录。
+- `wrangler whoami` 失败：检查网络，完成注册和邮箱验证；在部署目录重跑 `bash scripts/first-run.sh`，向导会重新显示设备验证网址和短代码。若代码过期，重新运行即可。不要复制带 `code=` 的 OAuth 回调地址。
 - D1 名称冲突：首次创建前设置其他 `TB_SETUP_DB_NAME`，或清理本次尚未部署的 `.local/setup.json` 后重试。不要删除已投入使用的 D1。
 - `tb doctor` 返回 401：核对 Worker URL 和**该设备**的客户端令牌，不要把 ntfy 令牌或 Cloudflare 管理员密钥填入客户端令牌字段。
 - 手机没有完成通知：确认 ntfy topic 已订阅、Codex Hook 已信任、`tb relay` 正在运行；可用 `tb notify --title 测试 "TaskBridge 已连接"` 验证客户端发送。

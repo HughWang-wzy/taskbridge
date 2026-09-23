@@ -38,7 +38,7 @@ if (-not (Test-GitReady) -or -not (Test-NodeReady)) {
     }
 }
 
-$releaseTag = 'v0.4.2'
+$releaseTag = 'v0.4.3'
 if (-not (Test-Path $SetupDir)) {
     & git clone --branch $releaseTag --depth 1 https://github.com/HughWang-wzy/taskbridge.git $SetupDir
     if ($LASTEXITCODE -ne 0) { throw 'Could not clone TaskBridge' }

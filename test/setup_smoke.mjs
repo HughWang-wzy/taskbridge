@@ -22,7 +22,8 @@ test('first-time deployment creates one D1, reuses it on retry, and refuses unre
 const fs = require('fs');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.MOCK_LOG, args.join(' ') + '\\n');
-if (args[0] === 'whoami') console.log('{}');
+if (args[0] === 'whoami') { if (process.env.MOCK_REQUIRE_LOGIN === '1' && !fs.existsSync(process.env.MOCK_AUTH)) process.exitCode = 1; else console.log('{}'); }
+else if (args[0] === 'login') { if (!args.includes('--device') || !args.includes('--browser=false')) process.exitCode = 2; else fs.writeFileSync(process.env.MOCK_AUTH, 'ok'); }
 else if (args[0] === 'd1' && args[1] === 'list') console.log(fs.existsSync(process.env.MOCK_DB) ? fs.readFileSync(process.env.MOCK_DB, 'utf8') : '[]');
 else if (args[0] === 'd1' && args[1] === 'create') fs.writeFileSync(process.env.MOCK_DB, JSON.stringify([{ name: args[2], uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' }]));
 else if (args[0] === 'deploy') console.log(process.env.MOCK_URL);
@@ -118,6 +119,16 @@ else process.exitCode = 2;
     const legacyState = JSON.parse(readFileSync(join(legacy, '.local/setup.json')));
     assert.match(legacyState.topic, /^Cospeak3-[0-9a-f]{32}$/);
     assert.equal(legacyState.topicConfirmed, true);
+
+    const remote = join(temp, 'remote');
+    mkdirSync(join(remote, 'scripts'), { recursive: true });
+    copyFileSync(source, join(remote, 'scripts/setup.mjs'));
+    copyFileSync(example, join(remote, 'wrangler.example.jsonc'));
+    const remoteEnv = { ...env, TB_SETUP_DB_NAME: 'taskbridge-remote', MOCK_DB: join(temp, 'remote-db.json'), MOCK_AUTH: join(temp, 'remote-auth'), MOCK_REQUIRE_LOGIN: '1' };
+    result = await setup(remote, remoteEnv);
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /device verification URL and short code/);
+    assert.match(readFileSync(logPath, 'utf8'), /login --device --browser=false/);
   } finally {
     await new Promise(done => server.close(done));
     rmSync(temp, { recursive: true, force: true });

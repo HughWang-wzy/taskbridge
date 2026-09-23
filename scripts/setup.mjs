@@ -121,14 +121,15 @@ async function main() {
     console.log('Checking Cloudflare login...');
     try { run(wrangler, ['whoami', '--json'], { capture: true }); }
     catch {
-      if (!stdin.isTTY) throw new Error('Cloudflare login required: run npx wrangler login, then retry');
+      if (!stdin.isTTY && !testMode) throw new Error('Cloudflare login required: run npx wrangler login --device --browser=false, then retry');
       console.log('\nCloudflare account setup:');
       console.log('1. Open https://dash.cloudflare.com/sign-up');
       console.log('2. Enter your email and password, then create the account.');
       console.log('3. Open the verification email and verify your address.');
-      console.log('4. Return here; Wrangler will open a browser to authorize this computer.');
-      await ask('Press Enter after registration or if you already have an account');
-      run(wrangler, ['login']);
+      console.log('4. Return here. Wrangler will print a device verification URL and short code.');
+      if (!testMode) await ask('Press Enter after registration or if you already have an account');
+      console.log('Open the Wrangler verification URL on any device, enter the short code, and approve access.');
+      run(wrangler, ['login', '--device', '--browser=false']);
       run(wrangler, ['whoami', '--json'], { capture: true });
     }
 

@@ -12,8 +12,8 @@ The first-run script checks Git, Node.js, and npm. If something is missing or ou
 
 1. Open the [Cloudflare signup page](https://dash.cloudflare.com/sign-up). Enter your email and password and create the account.
 2. Verify your email using Cloudflare's message.
-3. Return to the wizard and press Enter. Wrangler opens a browser to authorize this computer.
-4. Wait for `whoami` to succeed. D1 and the Worker will be created in the signed-in Cloudflare account.
+3. Return to the wizard and press Enter. Wrangler prints a device verification URL and short code. Open the URL in a browser on your computer or phone, enter the code, and approve access.
+4. Wait for `whoami` to succeed. [Cloudflare's device authorization flow](https://developers.cloudflare.com/workers/wrangler/commands/general/) does not use `localhost:8976`, so it works over remote SSH. D1 and the Worker will be created in the signed-in Cloudflare account.
 
 You complete signup and verification on Cloudflare's site; TaskBridge does not collect the password. See [Cloudflare's D1 prerequisites](https://developers.cloudflare.com/d1/get-started/).
 
@@ -22,13 +22,13 @@ You complete signup and verification on Cloudflare's site; TaskBridge does not c
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -67,13 +67,13 @@ Transfer the displayed token privately. The new computer needs the Worker URL, t
 Linux/macOS client installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/install.sh)
 ```
 
 Windows PowerShell client installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -101,7 +101,7 @@ Restart Codex and review/trust the Hooks in `/hooks` after installation or modif
 ## Troubleshoot
 
 - Node.js below 22 or missing npm: use the environment repair guidance, open a new terminal, and rerun first-run.
-- `wrangler whoami` fails: finish Cloudflare signup and email verification, check network access, then rerun `bash scripts/first-run.sh` from the deployment checkout. The wizard guides login again.
+- `wrangler whoami` fails: finish Cloudflare signup and email verification, check network access, then rerun `bash scripts/first-run.sh` from the deployment checkout. The wizard prints a new device verification URL and code. If the code expires, rerun it; do not copy an OAuth callback URL containing `code=`.
 - D1 name conflict: choose a different `TB_SETUP_DB_NAME` before the first create. Do not delete a live database.
 - `tb doctor` returns 401: verify the Worker URL and this device's client token. Do not enter an ntfy token or the Cloudflare admin secret as the client token.
 - No phone notice: check the subscribed topic, trusted Codex Hooks, and running relay. Try `tb notify --title Test "TaskBridge connected"`.
