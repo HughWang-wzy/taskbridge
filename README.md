@@ -19,6 +19,25 @@ TaskBridge tracks long-running commands and Codex sessions, then sends notificat
 - Go 1.22+ to build `tb`, or a prebuilt release archive
 - Codex CLI or a compatible Codex app only for the optional Codex integration
 
+## Set up another computer
+
+First create a separate client token on an already configured admin computer (see [Install a client](#install-a-client)). The new computer needs that token, the Worker URL, and the same ntfy topic. It does not need the Cloudflare admin token.
+
+On Linux or macOS, run the interactive installer:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.sh)
+```
+
+On Windows PowerShell:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+The installers select the platform release, verify its SHA-256 checksum, place `tb` in a user directory, configure the client, run `tb doctor`, and offer Codex integration and a local relay. Re-running keeps an existing client config unless you explicitly request reconfiguration. Inspect the script before running it if desired; the commands above execute code downloaded from this repository. Linux ARM64 is not yet packaged, so build from source on that platform.
+
 ## Deploy the Worker
 
 ```bash

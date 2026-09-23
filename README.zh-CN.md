@@ -11,6 +11,25 @@ TaskBridge 用 Cloudflare Worker + D1 记录长时间运行的命令和 Codex �
 - Codex MCP 支持手机答题；**只注册 MCP，不会自动接管所有 Codex 原生提问框**。手机先答后，电脑原生框可能仍需手动关闭。
 - D1 保存 LOST、恢复、提问和待发通知。多个 relay 可并行运行；ntfy 交付语义为至少一次。
 
+## 新电脑快速安装
+
+先在已配置的管理电脑创建**新电脑专用的客户端令牌**（命令见下文）。新电脑只需该令牌、Worker URL 和手机已订阅的 ntfy topic，不需要 Cloudflare 管理员令牌。
+
+Linux/macOS 在终端运行：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.sh)
+```
+
+Windows PowerShell 运行：
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+安装程序会选择平台发布包、核对 SHA-256、安装 `tb`、交互式配置客户端并运行 `tb doctor`，还会询问是否安装 Codex Hook/MCP 和本机 relay。已有配置默认保留。以上命令会运行从公开仓库下载的脚本，你也可以先打开脚本阅读。Linux ARM64 暂无预编译包，需要从源码构建。
+
 ## 部署 Worker
 
 准备 Cloudflare Workers + D1、Node.js 22+ 和一个手机已订阅的 ntfy topic。建议使用足够长的随机 topic 名称。

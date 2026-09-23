@@ -1,6 +1,6 @@
 {
 	"name": "taskbridge",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"private": true,
 	"license": "MIT",
 	"description": "Cloudflare D1 task tracking and ntfy notifications with a cross-platform Go client",
