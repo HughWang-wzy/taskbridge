@@ -52,11 +52,13 @@ else process.exitCode = 2;
       MOCK_DB: dbPath, MOCK_LOG: logPath, MOCK_URL: url };
     // Child process needs the HTTP server to keep serving, so use async spawn.
     const { spawn } = await import('node:child_process');
-    async function setup() {
+    async function setup(target = project, childEnv = env) {
       return new Promise(resolve => {
-        const child = spawn(process.execPath, [join(project, 'scripts/setup.mjs')], { cwd: project, env });
-        let stderr = ''; child.stderr.on('data', chunk => stderr += chunk);
-        child.on('close', code => resolve({ code, stderr }));
+        const child = spawn(process.execPath, [join(target, 'scripts/setup.mjs')], { cwd: target, env: childEnv });
+        let stderr = '', stdout = '';
+        child.stderr.on('data', chunk => stderr += chunk);
+        child.stdout.on('data', chunk => stdout += chunk);
+        child.on('close', code => resolve({ code, stderr, stdout }));
       });
     }
     let result = await setup();
@@ -88,6 +90,34 @@ else process.exitCode = 2;
     result = await setup();
     assert.notEqual(result.code, 0);
     assert.match(result.stderr, /already exists; choose a different/);
+
+    const fresh = join(temp, 'fresh');
+    mkdirSync(join(fresh, 'scripts'), { recursive: true });
+    copyFileSync(source, join(fresh, 'scripts/setup.mjs'));
+    copyFileSync(example, join(fresh, 'wrangler.example.jsonc'));
+    const freshEnv = { ...env, TB_NTFY_PREFIX: 'Cospeak3', TB_SETUP_DB_NAME: 'taskbridge-fresh', MOCK_DB: join(temp, 'fresh-db.json') };
+    delete freshEnv.TB_NTFY_TOPIC;
+    result = await setup(fresh, freshEnv);
+    assert.equal(result.code, 0, result.stderr);
+    const freshState = JSON.parse(readFileSync(join(fresh, '.local/setup.json')));
+    assert.match(freshState.topic, /^Cospeak3-[0-9a-f]{32}$/);
+    assert.equal(freshState.topicConfirmed, true);
+    assert.match(result.stdout, /subscribe to exactly this topic name/);
+    assert.ok(result.stdout.indexOf('Your ntfy topic:') < result.stdout.indexOf('Checking Cloudflare login'));
+
+    const legacy = join(temp, 'legacy');
+    mkdirSync(join(legacy, 'scripts'), { recursive: true });
+    mkdirSync(join(legacy, '.local'));
+    copyFileSync(source, join(legacy, 'scripts/setup.mjs'));
+    copyFileSync(example, join(legacy, 'wrangler.example.jsonc'));
+    writeFileSync(join(legacy, '.local/setup.json'), JSON.stringify({ databaseName: 'taskbridge-legacy', workerName: 'taskbridge-legacy', adminToken: 'a'.repeat(64), topic: 'Cospeak3', creationStarted: false }));
+    const legacyEnv = { ...env, MOCK_DB: join(temp, 'legacy-db.json') };
+    delete legacyEnv.TB_NTFY_TOPIC;
+    result = await setup(legacy, legacyEnv);
+    assert.equal(result.code, 0, result.stderr);
+    const legacyState = JSON.parse(readFileSync(join(legacy, '.local/setup.json')));
+    assert.match(legacyState.topic, /^Cospeak3-[0-9a-f]{32}$/);
+    assert.equal(legacyState.topicConfirmed, true);
   } finally {
     await new Promise(done => server.close(done));
     rmSync(temp, { recursive: true, force: true });

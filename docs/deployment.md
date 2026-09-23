@@ -4,7 +4,7 @@
 
 ## Check your environment
 
-The first deployment needs Git, Node.js 22+ with npm, network access to Cloudflare, and an ntfy topic subscribed on your phone. Linux/macOS client installation also needs `curl`, `tar`, and a SHA-256 utility. Prebuilt clients support Linux x86-64, macOS Intel/Apple Silicon, and Windows x86-64; Linux ARM64 requires a source build.
+The first deployment needs Git, network access to Cloudflare, and the ntfy app on your phone. The script checks and can install Node.js 22+ with npm. Linux/macOS client installation also needs `curl`, `tar`, and a SHA-256 utility. Prebuilt clients support Linux x86-64, macOS Intel/Apple Silicon, and Windows x86-64; Linux ARM64 requires a source build.
 
 The first-run script checks Git, Node.js, and npm. If something is missing or outdated, it offers repair: Homebrew on macOS; existing nvm on Linux, or a SHA-256-verified download from the [official Node.js 22 release directory](https://nodejs.org/download/release/latest-v22.x/) into `~/.local/share/taskbridge/node-22`; winget on Windows. Linux can install Git through apt/dnf, running directly as root when appropriate. The client installer also checks download, archive, and SHA-256 tools. No system packages are changed silently.
 
@@ -22,17 +22,17 @@ You complete signup and verification on Cloudflare's site; TaskBridge does not c
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
-The wrapper clones the repository into `~/taskbridge` by default, installs dependencies, and runs the wizard. Supply the ntfy topic already subscribed on your phone. The wizard creates a separate D1 and Worker, applies migrations, sets a random admin secret, checks `/health`, creates this computer's client token, and starts the client installer. The installer then offers Codex Hook/MCP integration and a local relay.
+The wrapper clones the repository into `~/taskbridge` by default, installs dependencies, and runs the wizard. Enter an easy name such as `Cospeak3`; the wizard appends 32 random hexadecimal characters, displays the full topic, and waits while you subscribe to it on your phone. Then it creates a separate D1 and Worker, applies migrations, sets a random admin secret, checks `/health`, creates this computer's client token, and starts the client installer. The installer offers Codex Hook/MCP integration and a local relay.
 
 Keep the deployment checkout's `.local/` directory. It contains the admin configuration and recovery state, is ignored by Git, and should not be copied to another computer. If setup stops, retry in the same checkout:
 
@@ -42,7 +42,7 @@ bash ~/taskbridge/scripts/first-run.sh
 
 On Windows, rerun `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\first-run.ps1` from the deployment checkout.
 
-A retry reuses the D1, admin secret, and local client token. The wizard stops if the signed-in account cannot see the saved D1, or if an existing hand-written `wrangler.jsonc` has no wizard state.
+Rerunning the new first-run command updates an existing clean source checkout while preserving `.local/` deployment state. A retry reuses the D1, admin secret, and local client token. An unfinished v0.4.1 state gets a random topic suffix; a completed deployment keeps its topic. The wizard stops if the signed-in account cannot see the saved D1, or if an existing hand-written `wrangler.jsonc` has no wizard state.
 
 ## Add another computer
 
@@ -67,13 +67,13 @@ Transfer the displayed token privately. The new computer needs the Worker URL, t
 Linux/macOS client installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.sh)
 ```
 
 Windows PowerShell client installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 

@@ -31,6 +31,8 @@ jobs:
         run: node --test test/setup_smoke.mjs
       - name: Test Linux Node.js repair
         run: python3 test/first_run_node_smoke.py
+      - name: Test release checkout update
+        run: python3 test/first_run_update_smoke.py
       - name: Build release archives
         run: npm run package
       - name: Test Linux installer

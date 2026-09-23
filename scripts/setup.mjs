@@ -49,6 +49,26 @@ function validateName(name) {
   return name;
 }
 
+function createTopic(prefix) {
+  const clean = (prefix || 'taskbridge').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(clean)) {
+    throw new Error('ntfy topic name must be 1–64 letters, digits, underscores or hyphens');
+  }
+  return `${clean}-${randomBytes(16).toString('hex')}`;
+}
+
+async function confirmTopic(state) {
+  if (state.topicConfirmed) return;
+  console.log(`\nYour ntfy topic: ${state.topic}`);
+  console.log('On your phone, open ntfy and subscribe to exactly this topic name.');
+  console.log('The random suffix makes the public topic difficult to guess.');
+  if (!testMode && process.env.TB_SETUP_TOPIC_CONFIRMED !== '1') {
+    await ask('Press Enter after your phone has subscribed');
+  }
+  state.topicConfirmed = true;
+  save(statePath, state);
+}
+
 function validateURL(value) {
   const url = new URL(value);
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname))) {
@@ -78,13 +98,25 @@ async function main() {
   }
     let state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null;
     if (!state) {
-      const topic = await ask('ntfy topic subscribed on your phone', process.env.TB_NTFY_TOPIC);
-      if (!topic || !/^[A-Za-z0-9_-]{3,128}$/.test(topic)) throw new Error('ntfy topic must contain 3–128 letters, digits, underscores or hyphens');
+      const existingTopic = process.env.TB_NTFY_TOPIC;
+      const prefix = existingTopic ? '' : await ask('Choose an ntfy topic name (random suffix added)', process.env.TB_NTFY_PREFIX);
+      const topic = existingTopic || createTopic(prefix);
+      if (!/^[A-Za-z0-9_-]{3,128}$/.test(topic)) throw new Error('ntfy topic must contain 3–128 letters, digits, underscores or hyphens');
       const name = validateName(process.env.TB_SETUP_DB_NAME || `taskbridge-${randomBytes(4).toString('hex')}`);
       const workerName = validateName(process.env.TB_SETUP_WORKER_NAME || name);
-      state = { databaseName: name, workerName, adminToken: randomBytes(32).toString('hex'), topic, creationStarted: false };
+      state = { databaseName: name, workerName, adminToken: randomBytes(32).toString('hex'), topic, topicConfirmed: Boolean(existingTopic), creationStarted: false };
+      save(statePath, state);
+    } else if (state.topicConfirmed === undefined) {
+      // v0.4.1 asked for the public topic directly. Upgrade only unfinished setups.
+      if (!state.clientToken && !existsSync(adminPath)) {
+        state.topic = createTopic(state.topic);
+        state.topicConfirmed = false;
+      } else {
+        state.topicConfirmed = true;
+      }
       save(statePath, state);
     }
+    await confirmTopic(state);
 
     console.log('Checking Cloudflare login...');
     try { run(wrangler, ['whoami', '--json'], { capture: true }); }

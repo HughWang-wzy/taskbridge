@@ -38,11 +38,21 @@ if (-not (Test-GitReady) -or -not (Test-NodeReady)) {
     }
 }
 
+$releaseTag = 'v0.4.2'
 if (-not (Test-Path $SetupDir)) {
-    & git clone --branch v0.4.1 --depth 1 https://github.com/HughWang-wzy/taskbridge.git $SetupDir
+    & git clone --branch $releaseTag --depth 1 https://github.com/HughWang-wzy/taskbridge.git $SetupDir
     if ($LASTEXITCODE -ne 0) { throw 'Could not clone TaskBridge' }
 } elseif (-not (Test-Path (Join-Path $SetupDir 'scripts/setup.mjs'))) {
     throw "$SetupDir exists and is not a TaskBridge checkout; choose a new -SetupDir"
+} else {
+    if (-not (Test-Path (Join-Path $SetupDir '.git'))) { throw "$SetupDir is not a Git checkout; cannot update it safely" }
+    $edits = & git -C $SetupDir status --porcelain --untracked-files=no
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the existing checkout' }
+    if ($edits) { throw "$SetupDir has local source edits; update it manually" }
+    & git -C $SetupDir fetch --depth 1 origin "refs/tags/${releaseTag}:refs/tags/${releaseTag}"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the TaskBridge release tag' }
+    & git -C $SetupDir checkout --detach -q $releaseTag
+    if ($LASTEXITCODE -ne 0) { throw 'Could not update the TaskBridge checkout' }
 }
 
 Push-Location $SetupDir

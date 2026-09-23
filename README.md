@@ -6,18 +6,18 @@ TaskBridge tracks long-running commands and Codex turns and sends completion, fa
 
 ## First deployment
 
-Have a Cloudflare account, Node.js 22+, Git, and an ntfy topic subscribed on your phone. The wizard checks the environment, guides Cloudflare login, creates D1 and the Worker, and installs the local client.
+Have a Cloudflare account, Git, and the ntfy app on your phone. The wizard can install Node.js 22+, asks for a topic name, adds a random suffix, guides Cloudflare login, creates D1 and the Worker, and installs the local client. Subscribe to the generated topic on your phone when prompted.
 
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 

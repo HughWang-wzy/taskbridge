@@ -131,12 +131,21 @@ if ! git_ready || ! node_ready; then
   fi
 fi
 
+release_tag=v0.4.2
 setup_dir="${TB_SETUP_DIR:-$HOME/taskbridge}"
 if [[ ! -e "$setup_dir" ]]; then
-  git clone --branch v0.4.1 --depth 1 https://github.com/HughWang-wzy/taskbridge.git "$setup_dir"
+  git clone --branch "$release_tag" --depth 1 https://github.com/HughWang-wzy/taskbridge.git "$setup_dir"
 elif [[ ! -f "$setup_dir/scripts/setup.mjs" ]]; then
   echo "$setup_dir exists and is not a TaskBridge checkout; set TB_SETUP_DIR to a new path" >&2
   exit 2
+else
+  [[ -d "$setup_dir/.git" ]] || { echo "$setup_dir is not a Git checkout; cannot update it safely" >&2; exit 2; }
+  if [[ -n "$(git -C "$setup_dir" status --porcelain --untracked-files=no)" ]]; then
+    echo "$setup_dir has local source edits; keep them and update the checkout manually" >&2
+    exit 2
+  fi
+  git -C "$setup_dir" fetch --depth 1 origin "refs/tags/$release_tag:refs/tags/$release_tag"
+  git -C "$setup_dir" checkout --detach -q "$release_tag"
 fi
 
 cd "$setup_dir"

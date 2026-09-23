@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-首次部署需要 Git、Node.js 22+（含 npm）、可访问 Cloudflare 的网络和一个 ntfy topic。Linux/macOS 客户端安装还需要 `curl`、`tar` 和 SHA-256 工具；Windows 使用 PowerShell。当前发布包支持 Linux x86-64、macOS Intel/Apple Silicon 和 Windows x86-64。Linux ARM64 需要自行从源码构建。
+首次部署需要 Git、可访问 Cloudflare 的网络和手机 ntfy 应用。脚本会检查并辅助安装 Node.js 22+（含 npm）。Linux/macOS 客户端安装还需要 `curl`、`tar` 和 SHA-256 工具；Windows 使用 PowerShell。当前发布包支持 Linux x86-64、macOS Intel/Apple Silicon 和 Windows x86-64。Linux ARM64 需要自行从源码构建。
 
 首次部署脚本会检查 Git、Node.js 和 npm。缺少或版本过旧时，会显示问题并询问是否修复：macOS 使用已有 Homebrew；Linux 有 nvm 时使用 nvm，否则从 [Node.js 官方发布目录](https://nodejs.org/download/release/latest-v22.x/)下载并校验 SHA-256 后安装到 `~/.local/share/taskbridge/node-22`；Windows 使用已有 winget。Linux 缺 Git 时使用 apt/dnf；root 用户直接执行包管理器，不要求 sudo。客户端安装器也会检查下载、解压和 SHA-256 工具。脚本不会静默修改系统软件。
 
@@ -22,17 +22,17 @@
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
-脚本默认把源码放在 `~/taskbridge`，安装依赖后启动向导。向导会询问**手机已经订阅**的 ntfy topic，然后创建独立命名的 D1 和 Worker、执行迁移、设置随机管理员密钥、验证 `/health`、为本机创建客户端令牌，并调用客户端安装器。客户端安装器再询问是否安装 Codex Hook/MCP、是否启动 relay。
+脚本默认把源码放在 `~/taskbridge`，安装依赖后启动向导。你输入易记的名称，例如 `Cospeak3`；向导自动追加 32 位随机十六进制后缀，显示完整 topic，并等你在手机 ntfy 中订阅这个完整名称后继续。随后它创建独立命名的 D1 和 Worker、执行迁移、设置随机管理员密钥、验证 `/health`、为本机创建客户端令牌，并调用客户端安装器。客户端安装器再询问是否安装 Codex Hook/MCP、是否启动 relay。
 
 管理员密钥和恢复状态保存在部署目录的 `.local/` 中，已被 Git 忽略；请保留该目录，不要把它传给其他电脑。首次部署中断后，在同一目录运行：
 
@@ -42,7 +42,7 @@ bash ~/taskbridge/scripts/first-run.sh
 
 Windows 在部署目录重运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\first-run.ps1`。
 
-向导会复用已创建的 D1、管理员密钥和本机令牌。若当前登录账户找不到原 D1，它会停止，避免在另一个账户创建同名数据库。已有手工配置的 `wrangler.jsonc` 也不会被向导接管。
+重跑新版本首次部署命令时，脚本会在没有本地源码改动的情况下更新已有源码目录，同时保留 `.local/` 部署状态。向导会复用已创建的 D1、管理员密钥和本机令牌。v0.4.1 尚未完成客户端配置的旧状态会为原 topic 补随机后缀；已完成部署的 topic 保持不变。若当前登录账户找不到原 D1，它会停止，避免在另一个账户创建同名数据库。已有手工配置的 `wrangler.jsonc` 也不会被向导接管。
 
 ## 添加另一台电脑
 
@@ -67,13 +67,13 @@ Remove-Item Env:TB_CONFIG
 Linux/macOS 客户端安装：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.sh)
 ```
 
 Windows PowerShell 客户端安装：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 

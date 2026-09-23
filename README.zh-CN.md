@@ -6,18 +6,18 @@ TaskBridge 记录长时间运行的命令和 Codex 任务，并通过 ntfy 向�
 
 ## 首次部署
 
-准备 Cloudflare 账户、Node.js 22+、Git，以及手机已订阅的 ntfy topic。向导会检查环境、引导登录 Cloudflare、创建 D1 和 Worker，并安装本机客户端。
+准备 Cloudflare 账户、Git 和手机 ntfy 应用。向导可安装 Node.js 22+；你只需输入喜欢的 topic 前缀，它会追加随机后缀，再提示你在手机订阅完整名称。随后向导会登录 Cloudflare、创建 D1 和 Worker，并安装本机客户端。
 
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.2/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
