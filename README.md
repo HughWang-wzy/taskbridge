@@ -1,8 +1,8 @@
 # TaskBridge
 
-**Run tasks on your computer. Get the result on your phone.** Run one installer to connect Codex tasks, model training, and other long-running commands to phone notifications. TaskBridge alerts you when a task finishes, fails, or loses contact, so you can step away from the terminal and still know the outcome.
+**Deploy in 30 seconds. Run tasks on your computer. Get the result on your phone.** Run one installer to connect Codex tasks, model training, and other long-running commands to phone notifications. TaskBridge alerts you when a task finishes, fails, or loses contact, so you can step away from the terminal and still know the outcome.
 
-The installer guides you through deploying the service in **your own Cloudflare account** and connecting the ntfy app. First-time setup includes account authorization and environment checks, so the time required depends on your network and computer.
+The installer guides you through deploying the service in **your own Cloudflare account** and connecting the ntfy app. Setup takes about 30 seconds when the environment is ready; creating a Cloudflare account or repairing missing tools takes longer.
 
 [简体中文](README.zh-CN.md) · [Deployment guide](docs/deployment.md) · [Architecture](docs/architecture.md) · [MIT license](LICENSE)
 
