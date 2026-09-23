@@ -39,7 +39,7 @@ if (-not (Test-GitReady) -or -not (Test-NodeReady)) {
 }
 
 if (-not (Test-Path $SetupDir)) {
-    & git clone --branch v0.4.0 --depth 1 https://github.com/HughWang-wzy/taskbridge.git $SetupDir
+    & git clone --branch v0.4.1 --depth 1 https://github.com/HughWang-wzy/taskbridge.git $SetupDir
     if ($LASTEXITCODE -ne 0) { throw 'Could not clone TaskBridge' }
 } elseif (-not (Test-Path (Join-Path $SetupDir 'scripts/setup.mjs'))) {
     throw "$SetupDir exists and is not a TaskBridge checkout; choose a new -SetupDir"

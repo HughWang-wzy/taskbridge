@@ -6,7 +6,7 @@
 
 首次部署需要 Git、Node.js 22+（含 npm）、可访问 Cloudflare 的网络和一个 ntfy topic。Linux/macOS 客户端安装还需要 `curl`、`tar` 和 SHA-256 工具；Windows 使用 PowerShell。当前发布包支持 Linux x86-64、macOS Intel/Apple Silicon 和 Windows x86-64。Linux ARM64 需要自行从源码构建。
 
-首次部署脚本会检查 Git、Node.js 和 npm。缺少或版本过旧时，会显示问题并询问是否尝试修复：macOS 使用已有 Homebrew；Linux 可用 apt/dnf 安装 Git，已有 nvm 时可安装 Node.js 22；Windows 使用已有 winget。客户端安装器也会检查下载、解压和 SHA-256 工具，并在支持的 Linux 系统上提供 apt/dnf 修复选项。没有对应工具时，按照终端给出的 [Node.js 安装指南](https://nodejs.org/en/download) 和 [Git 下载页](https://git-scm.com/downloads)安装，**打开新终端**后重试。脚本不会静默修改系统软件。
+首次部署脚本会检查 Git、Node.js 和 npm。缺少或版本过旧时，会显示问题并询问是否修复：macOS 使用已有 Homebrew；Linux 有 nvm 时使用 nvm，否则从 [Node.js 官方发布目录](https://nodejs.org/download/release/latest-v22.x/)下载并校验 SHA-256 后安装到 `~/.local/share/taskbridge/node-22`；Windows 使用已有 winget。Linux 缺 Git 时使用 apt/dnf；root 用户直接执行包管理器，不要求 sudo。客户端安装器也会检查下载、解压和 SHA-256 工具。脚本不会静默修改系统软件。
 
 ## 注册 Cloudflare 账户
 
@@ -22,13 +22,13 @@
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -37,9 +37,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 管理员密钥和恢复状态保存在部署目录的 `.local/` 中，已被 Git 忽略；请保留该目录，不要把它传给其他电脑。首次部署中断后，在同一目录运行：
 
 ```bash
-cd ~/taskbridge
-npm run setup
+bash ~/taskbridge/scripts/first-run.sh
 ```
+
+Windows 在部署目录重运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\first-run.ps1`。
 
 向导会复用已创建的 D1、管理员密钥和本机令牌。若当前登录账户找不到原 D1，它会停止，避免在另一个账户创建同名数据库。已有手工配置的 `wrangler.jsonc` 也不会被向导接管。
 
@@ -66,13 +67,13 @@ Remove-Item Env:TB_CONFIG
 Linux/macOS 客户端安装：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.sh)
 ```
 
 Windows PowerShell 客户端安装：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -100,7 +101,7 @@ Windows 将命令开头替换为 `& "$env:LOCALAPPDATA\Programs\TaskBridge\tb.ex
 ## 故障处理
 
 - `node` 版本低于 22 或 `npm` 缺失：使用上面的环境修复提示，打开新终端后重新运行首次部署脚本。
-- `wrangler whoami` 失败：检查网络，完成注册和邮箱验证，运行 `npx wrangler login` 后在部署目录重试 `npm run setup`。
+- `wrangler whoami` 失败：检查网络，完成注册和邮箱验证；在部署目录重跑 `bash scripts/first-run.sh`，向导会重新引导登录。
 - D1 名称冲突：首次创建前设置其他 `TB_SETUP_DB_NAME`，或清理本次尚未部署的 `.local/setup.json` 后重试。不要删除已投入使用的 D1。
 - `tb doctor` 返回 401：核对 Worker URL 和**该设备**的客户端令牌，不要把 ntfy 令牌或 Cloudflare 管理员密钥填入客户端令牌字段。
 - 手机没有完成通知：确认 ntfy topic 已订阅、Codex Hook 已信任、`tb relay` 正在运行；可用 `tb notify --title 测试 "TaskBridge 已连接"` 验证客户端发送。

@@ -6,7 +6,7 @@
 
 The first deployment needs Git, Node.js 22+ with npm, network access to Cloudflare, and an ntfy topic subscribed on your phone. Linux/macOS client installation also needs `curl`, `tar`, and a SHA-256 utility. Prebuilt clients support Linux x86-64, macOS Intel/Apple Silicon, and Windows x86-64; Linux ARM64 requires a source build.
 
-The first-run script checks Git, Node.js, and npm. If something is missing or outdated, it offers a repair using an available manager: Homebrew on macOS; apt/dnf for Git and existing nvm for Node.js on Linux; winget on Windows. The client installer also checks download, archive, and SHA-256 tools and offers an apt/dnf repair on supported Linux systems. Otherwise, use the [Node.js installer](https://nodejs.org/en/download) and [Git downloads](https://git-scm.com/downloads), open a new terminal, and retry. No system packages are changed silently.
+The first-run script checks Git, Node.js, and npm. If something is missing or outdated, it offers repair: Homebrew on macOS; existing nvm on Linux, or a SHA-256-verified download from the [official Node.js 22 release directory](https://nodejs.org/download/release/latest-v22.x/) into `~/.local/share/taskbridge/node-22`; winget on Windows. Linux can install Git through apt/dnf, running directly as root when appropriate. The client installer also checks download, archive, and SHA-256 tools. No system packages are changed silently.
 
 ## Create a Cloudflare account
 
@@ -22,13 +22,13 @@ You complete signup and verification on Cloudflare's site; TaskBridge does not c
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -37,9 +37,10 @@ The wrapper clones the repository into `~/taskbridge` by default, installs depen
 Keep the deployment checkout's `.local/` directory. It contains the admin configuration and recovery state, is ignored by Git, and should not be copied to another computer. If setup stops, retry in the same checkout:
 
 ```bash
-cd ~/taskbridge
-npm run setup
+bash ~/taskbridge/scripts/first-run.sh
 ```
+
+On Windows, rerun `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\first-run.ps1` from the deployment checkout.
 
 A retry reuses the D1, admin secret, and local client token. The wizard stops if the signed-in account cannot see the saved D1, or if an existing hand-written `wrangler.jsonc` has no wizard state.
 
@@ -66,13 +67,13 @@ Transfer the displayed token privately. The new computer needs the Worker URL, t
 Linux/macOS client installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.sh)
 ```
 
 Windows PowerShell client installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.0/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.1/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -100,7 +101,7 @@ Restart Codex and review/trust the Hooks in `/hooks` after installation or modif
 ## Troubleshoot
 
 - Node.js below 22 or missing npm: use the environment repair guidance, open a new terminal, and rerun first-run.
-- `wrangler whoami` fails: finish Cloudflare signup and email verification, check network access, run `npx wrangler login`, then retry `npm run setup`.
+- `wrangler whoami` fails: finish Cloudflare signup and email verification, check network access, then rerun `bash scripts/first-run.sh` from the deployment checkout. The wizard guides login again.
 - D1 name conflict: choose a different `TB_SETUP_DB_NAME` before the first create. Do not delete a live database.
 - `tb doctor` returns 401: verify the Worker URL and this device's client token. Do not enter an ntfy token or the Cloudflare admin secret as the client token.
 - No phone notice: check the subscribed topic, trusted Codex Hooks, and running relay. Try `tb notify --title Test "TaskBridge connected"`.

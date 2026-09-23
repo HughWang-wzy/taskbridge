@@ -31,7 +31,7 @@ if ((${#missing[@]})); then
     fi
   fi
   for program in curl tar awk; do
-    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.0/docs/deployment.zh-CN.md" >&2; exit 2; }
+    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.1/docs/deployment.zh-CN.md" >&2; exit 2; }
   done
   if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
     echo "Still missing: SHA-256 utility. See the deployment guide." >&2
