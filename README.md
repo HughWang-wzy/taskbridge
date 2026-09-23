@@ -21,24 +21,50 @@ TaskBridge tracks long-running commands and Codex sessions, then sends notificat
 
 ## Set up another computer
 
+For a **first deployment**, install Node.js 22+ and Git and use your own Cloudflare account. The guided setup signs in, creates a dedicated D1 database, applies migrations, generates and uploads an admin secret, deploys the Worker, creates this computer's client token, and installs the local client. Admin credentials stay in `.local/admin.json` on the deployment computer. Retry with `npm run setup` from the same checkout after an interruption.
+
+Linux/macOS first deployment:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/first-run.sh)
+```
+
+Windows PowerShell first deployment:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/first-run.ps1 -OutFile first-run.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
+```
+
+The setup asks for an ntfy topic already subscribed on your phone. Worker and D1 are created in the **currently signed-in Cloudflare account**.
+
+To create another computer's token from the deployment checkout (Linux/macOS example):
+
+```bash
+cd ~/taskbridge
+TB_CONFIG="$PWD/.local/admin.json" "$HOME/.local/bin/tb" clients create laptop --scopes=tasks:write,tasks:read,notify:write,notifications:relay,codex:write,questions:write,questions:read
+```
+
+On Windows, set `TB_CONFIG` to the deployment checkout's `.local/admin.json` and run `tb.exe clients create ...`. Transfer the displayed token privately to that computer.
+
 First create a separate client token on an already configured admin computer (see [Install a client](#install-a-client)). The new computer needs that token, the Worker URL, and the same ntfy topic. It does not need the Cloudflare admin token.
 
 On Linux or macOS, run the interactive installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/install.sh)
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 The installers select the platform release, verify its SHA-256 checksum, place `tb` in a user directory, configure the client, run `tb doctor`, and offer Codex integration and a local relay. Re-running keeps an existing client config unless you explicitly request reconfiguration. Inspect the script before running it if desired; the commands above execute code downloaded from this repository. Linux ARM64 is not yet packaged, so build from source on that platform.
 
-## Deploy the Worker
+## Deploy the Worker manually
 
 ```bash
 npm ci

@@ -13,24 +13,50 @@ TaskBridge 用 Cloudflare Worker + D1 记录长时间运行的命令和 Codex �
 
 ## 新电脑快速安装
 
+**首次部署**需要 Node.js 22+、Git 和自己的 Cloudflare 账户。向导会登录 Cloudflare、创建独立 D1、运行迁移、设置随机管理员密钥、部署 Worker、创建本机客户端令牌，并安装本机客户端。管理员配置留在部署电脑的 `.local/admin.json`，不要传给其他电脑。中途失败可在克隆目录重运行 `npm run setup`。
+
+Linux/macOS 首次部署：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/first-run.sh)
+```
+
+Windows PowerShell 首次部署：
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/first-run.ps1 -OutFile first-run.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
+```
+
+向导会询问手机已订阅的 ntfy topic；Worker 和 D1 创建在**当前登录的 Cloudflare 账户**下。你也可以先打开脚本阅读，再运行。
+
+在部署目录创建其他电脑的令牌（Linux/macOS 示例）：
+
+```bash
+cd ~/taskbridge
+TB_CONFIG="$PWD/.local/admin.json" "$HOME/.local/bin/tb" clients create laptop --scopes=tasks:write,tasks:read,notify:write,notifications:relay,codex:write,questions:write,questions:read
+```
+
+Windows 用 `TB_CONFIG` 指向部署目录的 `.local/admin.json`，运行已安装的 `tb.exe clients create ...`。令牌只显示一次，请私下传给对应电脑。
+
 先在已配置的管理电脑创建**新电脑专用的客户端令牌**（命令见下文）。新电脑只需该令牌、Worker URL 和手机已订阅的 ntfy topic，不需要 Cloudflare 管理员令牌。
 
 Linux/macOS 在终端运行：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/install.sh)
 ```
 
 Windows PowerShell 运行：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.2.0/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.3.0/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 安装程序会选择平台发布包、核对 SHA-256、安装 `tb`、交互式配置客户端并运行 `tb doctor`，还会询问是否安装 Codex Hook/MCP 和本机 relay。已有配置默认保留。以上命令会运行从公开仓库下载的脚本，你也可以先打开脚本阅读。Linux ARM64 暂无预编译包，需要从源码构建。
 
-## 部署 Worker
+## 手动部署 Worker
 
 准备 Cloudflare Workers + D1、Node.js 22+ 和一个手机已订阅的 ntfy topic。建议使用足够长的随机 topic 名称。
 

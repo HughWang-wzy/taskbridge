@@ -27,6 +27,8 @@ jobs:
         run: npm test
       - name: Typecheck Worker
         run: npm run typecheck
+      - name: Test Cloudflare setup wizard
+        run: node --test test/setup_smoke.mjs
       - name: Build release archives
         run: npm run package
       - name: Test Linux installer
@@ -40,12 +42,24 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Test Cloudflare setup wizard
+        run: node --test test/setup_smoke.mjs
       - name: Parse PowerShell installer
         shell: pwsh
         run: |
           $tokens = $null
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile('scripts/install.ps1', [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+      - name: Parse PowerShell first-run wrapper
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile('scripts/first-run.ps1', [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
 
   test-macos-installer:

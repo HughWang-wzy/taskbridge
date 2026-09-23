@@ -1,11 +1,12 @@
 {
 	"name": "taskbridge",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"private": true,
 	"license": "MIT",
 	"description": "Cloudflare D1 task tracking and ntfy notifications with a cross-platform Go client",
 	"scripts": {
 		"deploy": "wrangler deploy",
+		"setup": "node scripts/setup.mjs",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest run",
