@@ -31,7 +31,7 @@ def main():
         command("git", "tag", "v0.4.4", cwd=source)
         (source / "scripts/setup.mjs").write_text("// new\n")
         command("git", "commit", "-am", "new", cwd=source)
-        command("git", "tag", "v0.4.6", cwd=source)
+        command("git", "tag", "v0.4.7", cwd=source)
         command("git", "remote", "add", "origin", str(remote), cwd=source)
         command("git", "push", "origin", "--tags", cwd=source)
         command("git", "clone", "--branch", "v0.4.4", str(remote), str(checkout))
@@ -56,7 +56,7 @@ def main():
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "setup-invoked-proxy=1" in result.stdout
-        assert command("git", "rev-parse", "HEAD", cwd=checkout) == command("git", "rev-list", "-n", "1", "v0.4.6", cwd=source)
+        assert command("git", "rev-parse", "HEAD", cwd=checkout) == command("git", "rev-list", "-n", "1", "v0.4.7", cwd=source)
         assert (checkout / "scripts/setup.mjs").read_text() == "// new\n"
         assert state.read_text() == '{"topic":"Cospeak3"}'
         print("first-run checkout update smoke test passed")

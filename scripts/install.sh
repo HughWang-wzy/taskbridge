@@ -41,7 +41,7 @@ case "$install_mode" in
     command -v curl >/dev/null 2>&1 || { echo "curl is required for first deployment" >&2; exit 2; }
     bootstrap="$(mktemp)"
     trap 'rm -f "$bootstrap"' EXIT
-    curl -fsSL "${TB_FIRST_RUN_SCRIPT_URL:-https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/first-run.sh}" -o "$bootstrap"
+    curl -fsSL "${TB_FIRST_RUN_SCRIPT_URL:-https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.7/scripts/first-run.sh}" -o "$bootstrap"
     bash "$bootstrap"
     exit
     ;;
@@ -69,7 +69,7 @@ if ((${#missing[@]})); then
     fi
   fi
   for program in curl tar awk; do
-    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.6/docs/deployment.zh-CN.md" >&2; exit 2; }
+    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.7/docs/deployment.zh-CN.md" >&2; exit 2; }
   done
   if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
     echo "Still missing: SHA-256 utility. See the deployment guide." >&2

@@ -3,7 +3,7 @@ param(
     [string]$InstallDir = "$env:LOCALAPPDATA\Programs\TaskBridge",
     [string]$WorkerUrl = $env:TB_WORKER_URL,
     [string]$InstallMode = $env:TB_INSTALL_MODE,
-    [string]$FirstRunScriptUri = 'https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/first-run.ps1',
+    [string]$FirstRunScriptUri = 'https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.7/scripts/first-run.ps1',
     [switch]$EnableCodex,
     [switch]$DisableRelay,
     [switch]$Reconfigure

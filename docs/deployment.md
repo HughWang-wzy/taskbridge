@@ -24,13 +24,13 @@ Use the same installer on every computer. Choose **1: create a new Cloudflare Wo
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.7/scripts/install.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.7/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -69,13 +69,13 @@ Transfer the displayed token privately. Run the same installer on the new comput
 Linux/macOS installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.7/scripts/install.sh)
 ```
 
 Windows PowerShell installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.7/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -107,6 +107,7 @@ Restart Codex and review/trust the Hooks in `/hooks` after installation or modif
 - D1 name conflict: choose a different `TB_SETUP_DB_NAME` before the first create. Do not delete a live database.
 - `tb doctor` returns 401: verify the Worker URL and this device's client token. Do not enter an ntfy token or the Cloudflare admin secret as the client token.
 - `Worker health check request ... failed`: the Worker was deployed, but the server could not reach its URL. Check that URL, server egress, and `HTTP_PROXY`/`HTTPS_PROXY`. The wizard uses those proxy variables and bypasses the proxy for local addresses. Do not share the complete `.local/setup.json`; it contains the admin secret.
+- `Worker health check failed`: the wizard retries for about 20 seconds after deployment and includes the HTTP and D1 status if it still fails. Check that the printed `/health` URL returns `"db":"ok"`, then rerun the installer on the same computer and choose 1 to reuse the existing D1 and token.
 - No phone notice: check the subscribed topic, trusted Codex Hooks, and running relay. Try `tb notify --title Test "TaskBridge connected"`.
 - Existing manual `wrangler.jsonc`: keep it and use the manual steps below; the wizard will not overwrite it.
 

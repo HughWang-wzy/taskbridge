@@ -34,9 +34,15 @@ else process.exitCode = 2;
   if (process.platform === 'win32') writeFileSync(mockPath, '@echo off\r\nnode "%~dp0wrangler.js" %*\r\n');
 
   let clients = 0;
+  let healthFailures = 0;
+  let healthChecks = 0;
   const server = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
-    if (req.url === '/health') { res.end(JSON.stringify({ ok: true, db: 'ok' })); return; }
+    if (req.url === '/health') {
+      healthChecks++;
+      if (healthFailures-- > 0) { res.statusCode = 503; res.end(JSON.stringify({ ok: false, db: 'unavailable' })); return; }
+      res.end(JSON.stringify({ ok: true, db: 'ok' })); return;
+    }
     if (req.url === '/v1/clients' && req.method === 'POST') {
       clients++;
       res.statusCode = 201;
@@ -51,6 +57,7 @@ else process.exitCode = 2;
     const env = { ...process.env, TB_SETUP_TEST_MODE: '1', TB_SETUP_WRANGLER: mockPath,
       NODE_USE_ENV_PROXY: '1', NO_PROXY: 'localhost,127.0.0.1', no_proxy: 'localhost,127.0.0.1',
       TB_NTFY_TOPIC: 'test-topic', TB_SETUP_DB_NAME: 'taskbridge-test', TB_SETUP_WORKER_URL: url,
+      TB_SETUP_HEALTH_RETRY_MS: '10', TB_SETUP_HEALTH_MAX_ATTEMPTS: '3',
       MOCK_DB: dbPath, MOCK_LOG: logPath, MOCK_URL: url };
     // Child process needs the HTTP server to keep serving, so use async spawn.
     const { spawn } = await import('node:child_process');
@@ -105,6 +112,17 @@ else process.exitCode = 2;
     assert.match(freshState.topic, /^Cospeak3-[0-9a-f]{32}$/);
     assert.equal(freshState.topicConfirmed, true);
     assert.match(result.stdout, /subscribe to exactly this topic name/);
+
+    const delayed = join(temp, 'delayed');
+    mkdirSync(join(delayed, 'scripts'), { recursive: true });
+    copyFileSync(source, join(delayed, 'scripts/setup.mjs'));
+    copyFileSync(example, join(delayed, 'wrangler.example.jsonc'));
+    healthFailures = 2;
+    const checksBefore = healthChecks;
+    const delayedEnv = { ...env, TB_SETUP_DB_NAME: 'taskbridge-delayed', MOCK_DB: join(temp, 'delayed-db.json') };
+    result = await setup(delayed, delayedEnv);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(healthChecks - checksBefore, 3, 'health check should wait for Worker readiness');
     assert.ok(result.stdout.indexOf('Your ntfy topic:') < result.stdout.indexOf('Checking Cloudflare login'));
 
     const legacy = join(temp, 'legacy');

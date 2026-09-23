@@ -91,6 +91,27 @@ async function workerRequest(url, options, step) {
   }
 }
 
+async function waitForWorkerHealth(url) {
+  const attempts = Math.max(1, Math.min(10, Number(process.env.TB_SETUP_HEALTH_MAX_ATTEMPTS) || 10));
+  const delayMs = Math.max(0, Number(process.env.TB_SETUP_HEALTH_RETRY_MS) || 2000);
+  let reason = 'no response';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await workerRequest(`${url}/health`, {}, 'Worker health check');
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.db === 'ok') return;
+      reason = `HTTP ${response.status}, db=${body.db || 'unknown'}`;
+    } catch (error) {
+      reason = error.message;
+    }
+    if (attempt < attempts) {
+      console.log(`Waiting for Worker health (${attempt}/${attempts}): ${reason}`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error(`Worker health check failed at ${url}/health: ${reason}`);
+}
+
 async function ask(label, fallback) {
   if (fallback) return fallback;
   if (!stdin.isTTY) throw new Error(`${label} is required in noninteractive mode`);
@@ -189,9 +210,7 @@ async function main() {
     state.workerURL = url;
     save(statePath, state);
 
-    const health = await workerRequest(`${url}/health`, {}, 'Worker health check');
-    const healthBody = await health.json().catch(() => ({}));
-    if (!health.ok || healthBody.db !== 'ok') throw new Error(`Worker health check failed at ${url}/health`);
+    await waitForWorkerHealth(url);
     save(adminPath, { url, token: state.adminToken, ntfy_topic: state.topic, heartbeat_seconds: 120 });
 
     if (!state.clientToken) {
