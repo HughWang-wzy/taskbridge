@@ -8,11 +8,12 @@ jobs:
   test-and-package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+          cache: false
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -28,7 +29,7 @@ jobs:
         run: npm run typecheck
       - name: Build release archives
         run: npm run package
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: taskbridge-release-archives
           path: release/
