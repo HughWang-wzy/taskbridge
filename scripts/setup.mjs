@@ -82,6 +82,15 @@ function workerURL(output) {
   return match?.[0]?.replace(/\/$/, '');
 }
 
+async function workerRequest(url, options, step) {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
+  } catch (error) {
+    const reason = error?.cause?.code || error?.name || 'network_error';
+    throw new Error(`${step} request to ${new URL(url).origin} failed (${reason}). Check Worker URL, server egress and HTTP_PROXY/HTTPS_PROXY settings.`);
+  }
+}
+
 async function ask(label, fallback) {
   if (fallback) return fallback;
   if (!stdin.isTTY) throw new Error(`${label} is required in noninteractive mode`);
@@ -180,18 +189,18 @@ async function main() {
     state.workerURL = url;
     save(statePath, state);
 
-    const health = await fetch(`${url}/health`);
+    const health = await workerRequest(`${url}/health`, {}, 'Worker health check');
     const healthBody = await health.json().catch(() => ({}));
     if (!health.ok || healthBody.db !== 'ok') throw new Error(`Worker health check failed at ${url}/health`);
     save(adminPath, { url, token: state.adminToken, ntfy_topic: state.topic, heartbeat_seconds: 120 });
 
     if (!state.clientToken) {
       const clientName = process.env.TB_SETUP_CLIENT_NAME || `setup-${process.env.USER || process.env.USERNAME || 'computer'}`;
-      const response = await fetch(`${url}/v1/clients`, {
+      const response = await workerRequest(`${url}/v1/clients`, {
         method: 'POST',
         headers: { authorization: `Bearer ${state.adminToken}`, 'content-type': 'application/json' },
         body: JSON.stringify({ name: clientName, scopes }),
-      });
+      }, 'Client token creation');
       const body = await response.json();
       if (!response.ok || !body.token) throw new Error(`Client creation failed: HTTP ${response.status}`);
       state.clientToken = body.token;

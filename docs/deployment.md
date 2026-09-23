@@ -6,7 +6,7 @@
 
 The first deployment needs Git, network access to Cloudflare, and the ntfy app on your phone. The script checks and can install Node.js 22+ with npm. Linux/macOS client installation also needs `curl`, `tar`, and a SHA-256 utility. Prebuilt clients support Linux x86-64, macOS Intel/Apple Silicon, and Windows x86-64; Linux ARM64 requires a source build.
 
-The first-run script checks Git, Node.js, and npm. If something is missing or outdated, it offers repair: Homebrew on macOS; existing nvm on Linux, or a SHA-256-verified download from the [official Node.js 22 release directory](https://nodejs.org/download/release/latest-v22.x/) into `~/.local/share/taskbridge/node-22`; winget on Windows. Linux can install Git through apt/dnf, running directly as root when appropriate. The client installer also checks download, archive, and SHA-256 tools. No system packages are changed silently.
+The first-run script checks Git, Node.js, and npm. If something is missing or outdated, it offers repair: Homebrew on macOS; existing nvm on Linux, or a SHA-256-verified download from the [official Node.js 22 release directory](https://nodejs.org/download/release/latest-v22.x/) into `~/.local/share/taskbridge/node-22`; winget on Windows. Linux can install Git through apt/dnf, running directly as root when appropriate. The client installer also checks download, archive, and SHA-256 tools. Worker checks during first deployment use existing HTTP/HTTPS proxy environment variables. No system packages are changed silently.
 
 ## Create a Cloudflare account
 
@@ -22,13 +22,13 @@ You complete signup and verification on Cloudflare's site; TaskBridge does not c
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/first-run.ps1 -OutFile first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/first-run.ps1 -OutFile first-run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
 ```
 
@@ -67,13 +67,13 @@ Transfer the displayed token privately. The new computer needs the Worker URL, t
 Linux/macOS client installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/install.sh)
 ```
 
 Windows PowerShell client installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.3/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.4/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -104,6 +104,7 @@ Restart Codex and review/trust the Hooks in `/hooks` after installation or modif
 - `wrangler whoami` fails: finish Cloudflare signup and email verification, check network access, then rerun `bash scripts/first-run.sh` from the deployment checkout. The wizard prints a new device verification URL and code. If the code expires, rerun it; do not copy an OAuth callback URL containing `code=`.
 - D1 name conflict: choose a different `TB_SETUP_DB_NAME` before the first create. Do not delete a live database.
 - `tb doctor` returns 401: verify the Worker URL and this device's client token. Do not enter an ntfy token or the Cloudflare admin secret as the client token.
+- `Worker health check request ... failed`: the Worker was deployed, but the server could not reach its URL. Check that URL, server egress, and `HTTP_PROXY`/`HTTPS_PROXY`. The wizard uses those proxy variables and bypasses the proxy for local addresses. Do not share the complete `.local/setup.json`; it contains the admin secret.
 - No phone notice: check the subscribed topic, trusted Codex Hooks, and running relay. Try `tb notify --title Test "TaskBridge connected"`.
 - Existing manual `wrangler.jsonc`: keep it and use the manual steps below; the wizard will not overwrite it.
 

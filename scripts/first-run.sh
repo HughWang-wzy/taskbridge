@@ -131,7 +131,7 @@ if ! git_ready || ! node_ready; then
   fi
 fi
 
-release_tag=v0.4.3
+release_tag=v0.4.4
 setup_dir="${TB_SETUP_DIR:-$HOME/taskbridge}"
 if [[ ! -e "$setup_dir" ]]; then
   git clone --branch "$release_tag" --depth 1 https://github.com/HughWang-wzy/taskbridge.git "$setup_dir"
@@ -150,4 +150,6 @@ fi
 
 cd "$setup_dir"
 npm ci || { echo "npm ci failed. Check Node.js version, network access, and the deployment guide." >&2; exit 1; }
-node scripts/setup.mjs
+proxy_bypass="${no_proxy:-${NO_PROXY:-}}"
+proxy_bypass="${proxy_bypass:+$proxy_bypass,}localhost,127.0.0.1,::1"
+NO_PROXY="$proxy_bypass" no_proxy="$proxy_bypass" NODE_USE_ENV_PROXY=1 NODE_USE_SYSTEM_CA=1 node scripts/setup.mjs

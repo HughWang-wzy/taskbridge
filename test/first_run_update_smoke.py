@@ -28,13 +28,13 @@ def main():
         (source / "scripts/setup.mjs").write_text("// old\n")
         command("git", "add", ".", cwd=source)
         command("git", "commit", "-m", "old", cwd=source)
-        command("git", "tag", "v0.4.2", cwd=source)
+        command("git", "tag", "v0.4.3", cwd=source)
         (source / "scripts/setup.mjs").write_text("// new\n")
         command("git", "commit", "-am", "new", cwd=source)
-        command("git", "tag", "v0.4.3", cwd=source)
+        command("git", "tag", "v0.4.4", cwd=source)
         command("git", "remote", "add", "origin", str(remote), cwd=source)
         command("git", "push", "origin", "--tags", cwd=source)
-        command("git", "clone", "--branch", "v0.4.2", str(remote), str(checkout))
+        command("git", "clone", "--branch", "v0.4.3", str(remote), str(checkout))
         (checkout / ".local").mkdir()
         state = checkout / ".local/setup.json"
         state.write_text('{"topic":"Cospeak3"}')
@@ -42,7 +42,7 @@ def main():
         fake_bin = root / "bin"
         fake_bin.mkdir()
         node = fake_bin / "node"
-        node.write_text("#!/bin/sh\nif [ \"$1\" = -p ]; then echo 22; else echo setup-invoked; fi\n")
+        node.write_text("#!/bin/sh\nif [ \"$1\" = -p ]; then echo 22; else echo setup-invoked-proxy=$NODE_USE_ENV_PROXY; fi\n")
         node.chmod(0o755)
         npm = fake_bin / "npm"
         npm.write_text("#!/bin/sh\nif [ \"$1\" = --version ]; then echo 10.0; else echo npm-ci; fi\n")
@@ -55,7 +55,8 @@ def main():
             ["bash", str(ROOT / "scripts/first-run.sh")], env=env, capture_output=True, text=True, timeout=30
         )
         assert result.returncode == 0, result.stdout + result.stderr
-        assert command("git", "rev-parse", "HEAD", cwd=checkout) == command("git", "rev-list", "-n", "1", "v0.4.3", cwd=source)
+        assert "setup-invoked-proxy=1" in result.stdout
+        assert command("git", "rev-parse", "HEAD", cwd=checkout) == command("git", "rev-list", "-n", "1", "v0.4.4", cwd=source)
         assert (checkout / "scripts/setup.mjs").read_text() == "// new\n"
         assert state.read_text() == '{"topic":"Cospeak3"}'
         print("first-run checkout update smoke test passed")

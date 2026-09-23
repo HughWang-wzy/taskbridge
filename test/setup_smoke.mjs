@@ -49,6 +49,7 @@ else process.exitCode = 2;
   try {
     const url = `http://127.0.0.1:${server.address().port}`;
     const env = { ...process.env, TB_SETUP_TEST_MODE: '1', TB_SETUP_WRANGLER: mockPath,
+      NODE_USE_ENV_PROXY: '1', NO_PROXY: 'localhost,127.0.0.1', no_proxy: 'localhost,127.0.0.1',
       TB_NTFY_TOPIC: 'test-topic', TB_SETUP_DB_NAME: 'taskbridge-test', TB_SETUP_WORKER_URL: url,
       MOCK_DB: dbPath, MOCK_LOG: logPath, MOCK_URL: url };
     // Child process needs the HTTP server to keep serving, so use async spawn.
@@ -129,6 +130,15 @@ else process.exitCode = 2;
     assert.equal(result.code, 0, result.stderr);
     assert.match(result.stdout, /device verification URL and short code/);
     assert.match(readFileSync(logPath, 'utf8'), /login --device --browser=false/);
+
+    const unreachable = join(temp, 'unreachable');
+    mkdirSync(join(unreachable, 'scripts'), { recursive: true });
+    copyFileSync(source, join(unreachable, 'scripts/setup.mjs'));
+    copyFileSync(example, join(unreachable, 'wrangler.example.jsonc'));
+    const unreachableEnv = { ...env, TB_SETUP_DB_NAME: 'taskbridge-unreachable', TB_SETUP_WORKER_URL: 'http://127.0.0.1:1', MOCK_DB: join(temp, 'unreachable-db.json') };
+    result = await setup(unreachable, unreachableEnv);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stderr, /Worker health check request to http:\/\/127\.0\.0\.1:1 failed/);
   } finally {
     await new Promise(done => server.close(done));
     rmSync(temp, { recursive: true, force: true });

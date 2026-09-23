@@ -38,7 +38,7 @@ if (-not (Test-GitReady) -or -not (Test-NodeReady)) {
     }
 }
 
-$releaseTag = 'v0.4.3'
+$releaseTag = 'v0.4.4'
 if (-not (Test-Path $SetupDir)) {
     & git clone --branch $releaseTag --depth 1 https://github.com/HughWang-wzy/taskbridge.git $SetupDir
     if ($LASTEXITCODE -ne 0) { throw 'Could not clone TaskBridge' }
@@ -59,6 +59,11 @@ Push-Location $SetupDir
 try {
     & npm.cmd ci
     if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+    $proxyBypass = if ($env:no_proxy) { $env:no_proxy } else { $env:NO_PROXY }
+    $env:NO_PROXY = if ($proxyBypass) { "$proxyBypass,localhost,127.0.0.1,::1" } else { 'localhost,127.0.0.1,::1' }
+    $env:no_proxy = $env:NO_PROXY
+    $env:NODE_USE_ENV_PROXY = '1'
+    $env:NODE_USE_SYSTEM_CA = '1'
     & node scripts/setup.mjs
     if ($LASTEXITCODE -ne 0) { throw 'TaskBridge setup failed' }
 } finally {
