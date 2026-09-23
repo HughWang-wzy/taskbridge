@@ -2,6 +2,8 @@ param(
     [string]$ReleaseBase = 'https://github.com/HughWang-wzy/taskbridge/releases/latest/download',
     [string]$InstallDir = "$env:LOCALAPPDATA\Programs\TaskBridge",
     [string]$WorkerUrl = $env:TB_WORKER_URL,
+    [string]$InstallMode = $env:TB_INSTALL_MODE,
+    [string]$FirstRunScriptUri = 'https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/first-run.ps1',
     [switch]$EnableCodex,
     [switch]$DisableRelay,
     [switch]$Reconfigure
@@ -11,6 +13,37 @@ $ErrorActionPreference = 'Stop'
 if (-not [Environment]::Is64BitOperatingSystem) {
     throw 'TaskBridge currently provides a Windows x86-64 binary only.'
 }
+
+$configDir = Join-Path $env:APPDATA 'taskbridge'
+$configFile = Join-Path $configDir 'config.json'
+if (-not $InstallMode) {
+    if ($WorkerUrl -or $env:TB_CLIENT_TOKEN) {
+        $InstallMode = 'client'
+    } else {
+        $defaultChoice = if (Test-Path $configFile) { '2' } else { '1' }
+        Write-Host 'TaskBridge installation:'
+        Write-Host '  1) Create a new Cloudflare Worker and D1 database'
+        Write-Host '  2) Connect this computer to an existing Worker'
+        $InstallMode = Read-Host "Choose 1 or 2 [$defaultChoice]"
+        if (-not $InstallMode) { $InstallMode = $defaultChoice }
+    }
+}
+if ($InstallMode -in @('1', 'deploy')) {
+    $bootstrapPath = Join-Path ([IO.Path]::GetTempPath()) ('taskbridge-first-run-' + [Guid]::NewGuid().ToString('N') + '.ps1')
+    try {
+        if (Test-Path $FirstRunScriptUri) {
+            Copy-Item $FirstRunScriptUri $bootstrapPath
+        } else {
+            Invoke-WebRequest -UseBasicParsing -Uri $FirstRunScriptUri -OutFile $bootstrapPath
+        }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bootstrapPath
+        if ($LASTEXITCODE -ne 0) { throw 'First deployment failed; see the error above and retry.' }
+    } finally {
+        Remove-Item -Force $bootstrapPath -ErrorAction SilentlyContinue
+    }
+    return
+}
+if ($InstallMode -notin @('2', 'client')) { throw 'Choose 1 (new deployment) or 2 (existing Worker).' }
 
 $archive = 'taskbridge-windows-amd64.zip'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('taskbridge-' + [Guid]::NewGuid().ToString('N'))
@@ -40,8 +73,6 @@ try {
     Copy-Item -Force (Join-Path $workDir 'taskbridge-windows-amd64\tb.exe') $tbExe
     Write-Host "Installed $tbExe"
 
-    $configDir = Join-Path $env:APPDATA 'taskbridge'
-    $configFile = Join-Path $configDir 'config.json'
     if (-not (Test-Path $configFile) -or $Reconfigure) {
         if (-not $WorkerUrl) { $WorkerUrl = Read-Host 'Worker URL' }
         $topic = if ($env:TB_NTFY_TOPIC) { $env:TB_NTFY_TOPIC } else { Read-Host 'ntfy topic' }

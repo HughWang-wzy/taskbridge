@@ -1,29 +1,37 @@
 # TaskBridge
 
-TaskBridge 记录长时间运行的命令和 Codex 任务，并通过 ntfy 向手机发送完成、失败、提问和失联提醒。Cloudflare Worker + D1 保存状态；每台电脑运行 `tb` 客户端。每位使用者在**自己的 Cloudflare 账户**部署服务端。
+TaskBridge 记录长时间运行的命令和 Codex 任务，并通过 ntfy 向手机发送完成、失败、提问和失联提醒。每位使用者在**自己的 Cloudflare 账户**部署服务端。
 
 [English](README.md) · [部署与故障处理](docs/deployment.zh-CN.md) · [架构](docs/architecture.md) · [MIT 许可证](LICENSE)
 
-## 首次部署
+## 安装
 
-准备 Cloudflare 账户、Git 和手机 ntfy 应用。向导可安装 Node.js 22+；你只需输入喜欢的 topic 前缀，它会追加随机后缀，再提示你在手机订阅完整名称。随后向导会登录 Cloudflare、创建 D1 和 Worker，并安装本机客户端。
+首次使用时准备 Cloudflare 账户、Git 和手机 ntfy 应用。运行安装器后选择：
+
+1. **新建服务**：在你自己的 Cloudflare 账户中创建 Worker 和 D1，再安装本机客户端。向导可协助安装 Node.js 22+；ntfy topic 只需输入易记前缀，向导会追加随机后缀。
+2. **连接已有服务**：在另一台电脑安装客户端。先从原部署电脑创建该设备的客户端令牌，再输入已有 Worker URL、令牌和相同的 ntfy topic。详见[添加电脑](docs/deployment.zh-CN.md#添加另一台电脑)。
 
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-## 添加电脑
+## 这些名称是什么
 
-先在部署电脑为新设备创建独立客户端令牌，再在新电脑运行 [客户端安装器](docs/deployment.zh-CN.md#添加另一台电脑)。新电脑无需 Cloudflare 管理员密钥。
+| 名称 | 作用 |
+| --- | --- |
+| Cloudflare Worker | 运行 TaskBridge 服务端，管理任务状态、提问和待发送通知队列；它不是 ntfy topic。 |
+| Cloudflare D1 | Cloudflare 提供的数据库，持久保存上述状态和队列。 |
+| ntfy topic | 手机订阅的通知频道；各台电脑向它发送通知。 |
+| `tb` | 安装在每台电脑上的客户端。 |
 
 ## 自定义 Codex 通知
 

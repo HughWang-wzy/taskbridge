@@ -81,6 +81,28 @@ def main():
             assert config["ntfy_topic"] == "test-topic"
             assert (root / "bin/tb").is_file()
 
+            bootstrap = root / "first-run.sh"
+            marker = root / "bootstrap-called"
+            bootstrap.write_text('#!/usr/bin/env bash\nprintf new-deployment > "$TB_TEST_BOOTSTRAP_MARKER"\n')
+            deploy_env = env.copy()
+            deploy_env.pop("TB_WORKER_URL")
+            deploy_env.pop("TB_CLIENT_TOKEN")
+            deploy_env["TB_INSTALL_MODE"] = "deploy"
+            deploy_env["TB_FIRST_RUN_SCRIPT_URL"] = bootstrap.as_uri()
+            deploy_env["TB_TEST_BOOTSTRAP_MARKER"] = str(marker)
+            result = run_installer(deploy_env)
+            assert result.returncode == 0, result.stderr
+            assert marker.read_text() == "new-deployment"
+
+            fresh_env = deploy_env.copy()
+            fresh_env.pop("TB_INSTALL_MODE")
+            fresh_env["XDG_CONFIG_HOME"] = str(root / "fresh-config")
+            if sys.platform == "darwin":
+                fresh_env["HOME"] = str(root / "fresh-home")
+            result = run_installer(fresh_env)
+            assert result.returncode == 2
+            assert "TB_INSTALL_MODE=deploy" in result.stderr
+
             fake_commands = root / "fake-commands"
             fake_commands.mkdir()
             fake_codex = fake_commands / "codex"

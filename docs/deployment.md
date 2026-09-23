@@ -19,17 +19,19 @@ You complete signup and verification on Cloudflare's site; TaskBridge does not c
 
 ## Deploy for the first time
 
+Use the same installer on every computer. Choose **1: create a new Cloudflare Worker and D1** for a first deployment, or **2: connect to an existing Worker** on another computer. The Worker runs the TaskBridge server; D1 is Cloudflare’s database for tasks, questions, and pending notifications; the ntfy topic is the channel your phone subscribes to.
+
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 The wrapper clones the repository into `~/taskbridge` by default, installs dependencies, and runs the wizard. Enter an easy name such as `Cospeak3`; the wizard appends 32 random hexadecimal characters, displays the full topic, and waits while you subscribe to it on your phone. Then it creates a separate D1 and Worker, applies migrations, sets a random admin secret, checks `/health`, creates this computer's client token, and starts the client installer. The installer offers Codex Hook/MCP integration and a local relay.
@@ -42,7 +44,7 @@ bash ~/taskbridge/scripts/first-run.sh
 
 On Windows, rerun `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\first-run.ps1` from the deployment checkout.
 
-Rerunning the new first-run command updates an existing clean source checkout while preserving `.local/` deployment state. A retry reuses the D1, admin secret, and local client token. An unfinished v0.4.1 state gets a random topic suffix; a completed deployment keeps its topic. The wizard stops if the signed-in account cannot see the saved D1, or if an existing hand-written `wrangler.jsonc` has no wizard state.
+Rerunning the installer and choosing 1 updates an existing clean source checkout while preserving `.local/` deployment state. A retry reuses the D1, admin secret, and local client token. An unfinished v0.4.1 state gets a random topic suffix; a completed deployment keeps its topic. The wizard stops if the signed-in account cannot see the saved D1, or if an existing hand-written `wrangler.jsonc` has no wizard state.
 
 ## Add another computer
 
@@ -62,18 +64,18 @@ $env:TB_CONFIG = (Join-Path (Get-Location) '.local/admin.json')
 Remove-Item Env:TB_CONFIG
 ```
 
-Transfer the displayed token privately. The new computer needs the Worker URL, this device token, and the same ntfy topic; it does not need the admin secret.
+Transfer the displayed token privately. Run the same installer on the new computer and choose **2**. Enter the Worker URL, this device token, and the same ntfy topic. It needs no admin secret and creates no D1 database.
 
-Linux/macOS client installer:
+Linux/macOS installer:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
 ```
 
-Windows PowerShell client installer:
+Windows PowerShell installer:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 

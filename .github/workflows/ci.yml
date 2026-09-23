@@ -71,6 +71,15 @@ jobs:
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile('scripts/first-run.ps1', [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+      - name: Test Windows first-deployment dispatch
+        shell: pwsh
+        run: |
+          $bootstrap = Join-Path $env:RUNNER_TEMP 'mock-first-run.ps1'
+          $marker = Join-Path $env:RUNNER_TEMP 'first-run-called.txt'
+          Set-Content $bootstrap 'Set-Content $env:TB_TEST_BOOTSTRAP_MARKER "called"'
+          $env:TB_TEST_BOOTSTRAP_MARKER = $marker
+          & ./scripts/install.ps1 -InstallMode deploy -FirstRunScriptUri $bootstrap
+          if ((Get-Content $marker) -ne 'called') { throw 'First deployment did not dispatch' }
 
   test-macos-installer:
     runs-on: macos-latest

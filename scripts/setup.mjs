@@ -209,7 +209,7 @@ async function main() {
 
     console.log(`Worker: ${url}\nD1: ${state.databaseName}\nAdmin config: ${adminPath}`);
     if (!testMode) {
-      const env = { TB_WORKER_URL: url, TB_CLIENT_TOKEN: state.clientToken, TB_NTFY_TOPIC: state.topic };
+      const env = { TB_INSTALL_MODE: 'client', TB_WORKER_URL: url, TB_CLIENT_TOKEN: state.clientToken, TB_NTFY_TOPIC: state.topic };
       if (process.platform === 'win32') {
         run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(root, 'scripts', 'install.ps1'), '-WorkerUrl', url], { env });
       } else {

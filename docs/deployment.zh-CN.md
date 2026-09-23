@@ -19,17 +19,19 @@
 
 ## 首次部署
 
+所有电脑都使用同一个安装入口。首次部署选择 **1：新建 Cloudflare Worker 和 D1**；添加电脑选择 **2：连接已有 Worker**。Worker 是运行 TaskBridge 服务端的 Cloudflare 程序，D1 是保存任务、提问和待发送通知的 Cloudflare 数据库；ntfy topic 是手机订阅的通知频道，三者各不相同。
+
 Linux/macOS：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 脚本默认把源码放在 `~/taskbridge`，安装依赖后启动向导。你输入易记的名称，例如 `Cospeak3`；向导自动追加 32 位随机十六进制后缀，显示完整 topic，并等你在手机 ntfy 中订阅这个完整名称后继续。随后它创建独立命名的 D1 和 Worker、执行迁移、设置随机管理员密钥、验证 `/health`、为本机创建客户端令牌，并调用客户端安装器。客户端安装器再询问是否安装 Codex Hook/MCP、是否启动 relay。
@@ -42,7 +44,7 @@ bash ~/taskbridge/scripts/first-run.sh
 
 Windows 在部署目录重运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\first-run.ps1`。
 
-重跑新版本首次部署命令时，脚本会在没有本地源码改动的情况下更新已有源码目录，同时保留 `.local/` 部署状态。向导会复用已创建的 D1、管理员密钥和本机令牌。v0.4.1 尚未完成客户端配置的旧状态会为原 topic 补随机后缀；已完成部署的 topic 保持不变。若当前登录账户找不到原 D1，它会停止，避免在另一个账户创建同名数据库。已有手工配置的 `wrangler.jsonc` 也不会被向导接管。
+重跑安装器并选择 1 时，脚本会在没有本地源码改动的情况下更新已有源码目录，同时保留 `.local/` 部署状态。向导会复用已创建的 D1、管理员密钥和本机令牌。v0.4.1 尚未完成客户端配置的旧状态会为原 topic 补随机后缀；已完成部署的 topic 保持不变。若当前登录账户找不到原 D1，它会停止，避免在另一个账户创建同名数据库。已有手工配置的 `wrangler.jsonc` 也不会被向导接管。
 
 ## 添加另一台电脑
 
@@ -62,18 +64,18 @@ $env:TB_CONFIG = (Join-Path (Get-Location) '.local/admin.json')
 Remove-Item Env:TB_CONFIG
 ```
 
-令牌只显示一次，私下传给对应电脑。新电脑输入 Worker URL、该令牌和相同的 ntfy topic；不需要管理员密钥。
+令牌只显示一次，私下传给对应电脑。新电脑运行同一安装器并选择 **2**，输入 Worker URL、该令牌和相同的 ntfy topic；不需要管理员密钥，也不会新建 D1。
 
-Linux/macOS 客户端安装：
+Linux/macOS 安装入口：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
 ```
 
-Windows PowerShell 客户端安装：
+Windows PowerShell 安装入口：
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 

@@ -1,29 +1,37 @@
 # TaskBridge
 
-TaskBridge tracks long-running commands and Codex turns and sends completion, failure, question, and lost-task alerts to your phone through ntfy. A Cloudflare Worker with D1 stores state; a `tb` client runs on each computer. Each user deploys the Worker and D1 in **their own Cloudflare account**.
+TaskBridge tracks long-running commands and Codex turns and sends completion, failure, question, and lost-task alerts to your phone through ntfy. Each user deploys the server in **their own Cloudflare account**.
 
 [简体中文](README.zh-CN.md) · [Deployment guide](docs/deployment.md) · [Architecture](docs/architecture.md) · [MIT license](LICENSE)
 
-## First deployment
+## Install
 
-Have a Cloudflare account, Git, and the ntfy app on your phone. The wizard can install Node.js 22+, asks for a topic name, adds a random suffix, guides Cloudflare login, creates D1 and the Worker, and installs the local client. Subscribe to the generated topic on your phone when prompted.
+For a first deployment, have a Cloudflare account, Git, and the ntfy app on your phone. The installer asks you to choose:
+
+1. **Create a new service** in your Cloudflare account, then install this computer's client. The wizard can help install Node.js 22+ and adds a random suffix to your chosen ntfy topic prefix.
+2. **Connect to an existing service** on another computer. First create a separate client token on the deployment computer, then enter its Worker URL, that token, and the same ntfy topic. See [Add another computer](docs/deployment.md#add-another-computer).
 
 Linux/macOS:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.sh)
 ```
 
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.5/scripts/first-run.ps1 -OutFile first-run.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\first-run.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-## Add another computer
+## What the components do
 
-Create a separate client token on the deployment computer, then run the [client installer](docs/deployment.md#add-another-computer) on the new device. The new device does not need the Cloudflare admin secret.
+| Component | Purpose |
+| --- | --- |
+| Cloudflare Worker | Runs the TaskBridge server, managing task state, questions, and the pending notification queue. It is not the ntfy topic. |
+| Cloudflare D1 | Cloudflare database that persists that state and queue. |
+| ntfy topic | Notification channel subscribed to on your phone; computers publish notices there. |
+| `tb` | Client installed on each computer. |
 
 ## Customize Codex alerts
 

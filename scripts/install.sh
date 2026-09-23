@@ -3,12 +3,50 @@ set -euo pipefail
 
 release_base="${TB_RELEASE_BASE:-https://github.com/HughWang-wzy/taskbridge/releases/latest/download}"
 install_dir="${TB_INSTALL_DIR:-$HOME/.local/bin}"
+if [[ "$(uname -s)" == Darwin ]]; then
+  config_dir="$HOME/Library/Application Support/taskbridge"
+else
+  config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/taskbridge"
+fi
+config_file="$config_dir/config.json"
 
 case "$(uname -s)-$(uname -m)" in
   Linux-x86_64) platform=linux-amd64 ;;
   Darwin-x86_64) platform=darwin-amd64 ;;
   Darwin-arm64) platform=darwin-arm64 ;;
   *) echo "Unsupported platform. Build from source with scripts/build.sh." >&2; exit 2 ;;
+esac
+
+install_mode="${TB_INSTALL_MODE:-}"
+if [[ -z "$install_mode" ]]; then
+  if [[ -n "${TB_WORKER_URL:-}" || -n "${TB_CLIENT_TOKEN:-}" ]]; then
+    install_mode=client
+  elif [[ -t 0 ]]; then
+    echo "TaskBridge installation:"
+    echo "  1) Create a new Cloudflare Worker and D1 database"
+    echo "  2) Connect this computer to an existing Worker"
+    default_choice=1
+    [[ -f "$config_file" ]] && default_choice=2
+    read -r -p "Choose 1 or 2 [$default_choice]: " install_mode </dev/tty
+    install_mode="${install_mode:-$default_choice}"
+  elif [[ -f "$config_file" ]]; then
+    install_mode=client
+  else
+    echo "Choose TB_INSTALL_MODE=deploy or TB_INSTALL_MODE=client for noninteractive setup." >&2
+    exit 2
+  fi
+fi
+case "$install_mode" in
+  1|deploy)
+    command -v curl >/dev/null 2>&1 || { echo "curl is required for first deployment" >&2; exit 2; }
+    bootstrap="$(mktemp)"
+    trap 'rm -f "$bootstrap"' EXIT
+    curl -fsSL "${TB_FIRST_RUN_SCRIPT_URL:-https://raw.githubusercontent.com/HughWang-wzy/taskbridge/v0.4.6/scripts/first-run.sh}" -o "$bootstrap"
+    bash "$bootstrap"
+    exit
+    ;;
+  2|client) ;;
+  *) echo "Choose 1 (new deployment) or 2 (existing Worker)." >&2; exit 2 ;;
 esac
 
 missing=()
@@ -31,7 +69,7 @@ if ((${#missing[@]})); then
     fi
   fi
   for program in curl tar awk; do
-    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.5/docs/deployment.zh-CN.md" >&2; exit 2; }
+    command -v "$program" >/dev/null 2>&1 || { echo "Still missing: $program. See https://github.com/HughWang-wzy/taskbridge/blob/v0.4.6/docs/deployment.zh-CN.md" >&2; exit 2; }
   done
   if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
     echo "Still missing: SHA-256 utility. See the deployment guide." >&2
@@ -60,12 +98,6 @@ tb_path="$install_dir/tb"
 install -m 755 "$work_dir/taskbridge-$platform/tb" "$tb_path"
 echo "Installed $tb_path"
 
-if [[ "$(uname -s)" == Darwin ]]; then
-  config_dir="$HOME/Library/Application Support/taskbridge"
-else
-  config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/taskbridge"
-fi
-
 prompt() {
   local label="$1" result
   [[ -t 0 ]] || { echo "Interactive terminal required for $label" >&2; return 1; }
@@ -73,7 +105,6 @@ prompt() {
   printf '%s' "$result"
 }
 
-config_file="$config_dir/config.json"
 if [[ ! -f "$config_file" || "${TB_RECONFIGURE:-0}" == 1 ]]; then
   worker_url="${TB_WORKER_URL:-}"
   topic="${TB_NTFY_TOPIC:-}"
