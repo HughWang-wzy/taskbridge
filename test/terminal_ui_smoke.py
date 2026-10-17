@@ -98,8 +98,16 @@ def main():
                         result = self.proc.wait(timeout=8)
                         assert result == code, (result, self.output[-3000:])
                         restored = termios.tcgetattr(self.slave)
+                        original = list(self.original)
+                        if sys.platform == "darwin":
+                            # Darwin sets PENDIN when ICANON is restored: the
+                            # kernel will reprocess buffered input on its next
+                            # read. It is not a raw-mode setting to restore.
+                            pending = getattr(termios, "PENDIN", 0)
+                            original[3] &= ~pending
+                            restored[3] &= ~pending
                         differences = {name: (before, after) for name, before, after in zip(
-                            ("iflag", "oflag", "cflag", "lflag", "ispeed", "ospeed", "cc"), self.original, restored
+                            ("iflag", "oflag", "cflag", "lflag", "ispeed", "ospeed", "cc"), original, restored
                         ) if before != after}
                         assert not differences, f"terminal mode was not restored: {differences!r}"
                     finally:
