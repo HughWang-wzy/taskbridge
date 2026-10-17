@@ -58,7 +58,7 @@ Files: READMEs, deployment guides, release version/tag wrappers, CI.
 
 - [x] Explain existing short commands, new interactive entrypoints, local favorites and sound limitations.
 - [x] Run all Go/Worker/type/setup/install checks and cross-platform builds; review the whole change.
-- [ ] Publish v0.5.0, verify latest assets, atomically update the local client and check menu availability.
+- [x] Publish v0.5.0, verify latest assets, atomically update the local client and check menu availability.
 
 ## Execution Record
 
@@ -69,3 +69,8 @@ Files: READMEs, deployment guides, release version/tag wrappers, CI.
 - Local validation passed: Go tests/vet, 38 Worker tests, TypeScript checking, setup wizard test, installer/update/Node repair smoke tests, real Unix PTY smoke, and four release targets with SHA-256 checks.
 - PTY checks cover Esc cancellation, draft settings save/discard, raw multiline command editing, favorite save/edit/delete, child stdin/output, and restored terminal mode. Windows-specific child argv/exit tests run in Windows CI; Linux/macOS CI also run the PTY smoke.
 - Read-only review found no blocking code issues; documentation now matches Enter-to-save settings.
+- Three-platform feature CI passed at `82354cc` ([run 39055201795](https://github.com/HughWang-wzy/taskbridge/actions/runs/39055201795)); the release workflow passed ([run 39055390023](https://github.com/HughWang-wzy/taskbridge/actions/runs/39055390023)).
+- Darwin PTY comparison ignores only `PENDIN`, the kernel input-reprocessing state set when `TIOCSETA` restores `ICANON`; all other flags, speeds and control characters remain exact comparisons. Verified against Apple's XNU `bsd/kern/tty.c` and `bsd/sys/termios.h`.
+- [v0.5.0](https://github.com/HughWang-wzy/taskbridge/releases/tag/v0.5.0) is latest. All 10 remote asset SHA-256 digests match the final local release files. The published CI binaries were retained byte-for-byte when third-party license notices were added to the archives; installer smoke tests passed again on those final archives. Future packaging includes the notices automatically.
+- Local `tb` was atomically replaced and the relay service restarted; both user configuration files retained their original SHA-256. `tb --help` and read-only alert settings confirm the new commands and unchanged levels.
+- An existing runtime issue was diagnosed separately: CLI and Codex configurations share a legacy API queue but have distinct token scopes, so ordinary `doctor` cannot replay old Codex events. The authenticated doctor endpoint itself succeeds. Existing queue records and credentials were preserved; historical messages were not migrated or bulk-replayed as part of this UI delivery.

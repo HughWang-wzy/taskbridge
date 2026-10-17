@@ -18,7 +18,7 @@ for target in linux-amd64 darwin-amd64 darwin-arm64 windows-amd64; do
   else
     cp "dist/$target/tb" "$package_dir/"
   fi
-  cp README.md README.zh-CN.md LICENSE "$package_dir/"
+  cp README.md README.zh-CN.md LICENSE THIRD_PARTY_NOTICES.md "$package_dir/"
   mkdir -p "$package_dir/docs"
   cp docs/deployment.md docs/deployment.zh-CN.md docs/architecture.md "$package_dir/docs/"
   if [[ "$target" == windows-* ]]; then
@@ -29,10 +29,11 @@ for target in linux-amd64 darwin-amd64 darwin-arm64 windows-amd64; do
 done
 
 cp scripts/install.sh scripts/install.ps1 scripts/first-run.sh scripts/first-run.ps1 release/
+cp THIRD_PARTY_NOTICES.md release/
 if command -v sha256sum >/dev/null 2>&1; then
   checksum_command=(sha256sum)
 else
   checksum_command=(shasum -a 256)
 fi
-(cd release && "${checksum_command[@]}" ./*.tar.gz ./*.zip ./install.sh ./install.ps1 ./first-run.sh ./first-run.ps1 > SHA256SUMS)
+(cd release && "${checksum_command[@]}" ./*.tar.gz ./*.zip ./install.sh ./install.ps1 ./first-run.sh ./first-run.ps1 ./THIRD_PARTY_NOTICES.md > SHA256SUMS)
 echo "Release archives and SHA256SUMS written to release/"
