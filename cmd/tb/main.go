@@ -209,7 +209,7 @@ func runTask(c Config, args []string, in io.Reader, out, errOut io.Writer) int {
 		return 2
 	}
 	if *name == "" {
-		*name = filepath.Base(command[0])
+		*name = inferTaskName(command)
 	}
 	if e := flushQueue(c); e != nil {
 		fmt.Fprintf(errOut, "TaskBridge: queued requests remain: %v\n", e)
@@ -220,7 +220,7 @@ func runTask(c Config, args []string, in io.Reader, out, errOut io.Writer) int {
 	metadata := map[string]any{"notification_priorities": map[string]int{"lost": *lostPriority, "recovered": *successPriority}}
 	start := map[string]any{"id": id, "name": *name, "kind": "terminal", "host": host, "platform": runtime.GOOS, "cwd": cwd, "command": strings.Join(command, " "), "metadata": metadata}
 	sendOrQueue(c, "POST", "/v1/tasks/start", start, errOut)
-	cmd := exec.Command(command[0], command[1:]...)
+	cmd := newTaskCommand(command)
 	cmd.Stdin = in
 	cmd.Stdout = out
 	cmd.Stderr = errOut
@@ -336,8 +336,25 @@ func initialize(args []string, in io.Reader, out, errOut io.Writer) int {
 }
 func execute(args []string, in io.Reader, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "usage: tb init|doctor|run|notify|alerts|relay|status|retry|hook|mcp|clients")
+		if interactiveAvailable(in, out) {
+			return runInteractive([]string{"menu"}, in, out, errOut)
+		}
+		printUsage(errOut)
 		return 2
+	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		printUsage(out)
+		return 0
+	}
+	if args[0] == "menu" || args[0] == "settings" {
+		if len(args) > 1 {
+			printUsage(errOut)
+			return 2
+		}
+		return runInteractive(args, in, out, errOut)
+	}
+	if args[0] == "tasks" {
+		return executeTasks(args[1:], in, out, errOut)
 	}
 	if args[0] == "init" {
 		return initialize(args[1:], in, out, errOut)
@@ -492,5 +509,29 @@ func execute(args []string, in io.Reader, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "unknown command: %s\n", args[0])
 		return 2
 	}
+}
+func printUsage(out io.Writer) {
+	fmt.Fprintln(out, `TaskBridge — task results on your phone
+
+  tb                              Open interactive menu (terminal only)
+  tb settings                     Edit reminder presets and levels
+  tb run [-n NAME] [-p LEVEL] -- command [args...]
+  tb alerts [--preset low-noise|standard|important] [--success LEVEL ...]
+  tb tasks list|save|run|remove     Manage local favorite commands
+  tb notify [-p LEVEL] [--title TITLE] message
+  tb doctor                       Check connectivity
+  tb relay                        Deliver queued notifications
+  tb status TASK_ID               Read task state
+  tb retry                        Retry local queue
+  tb init                         Configure client
+  tb hook codex                   Configure Codex notifications
+  tb mcp                          Run the MCP server
+  tb clients create NAME          Create a device token (admin)
+
+Examples:
+  tb run python scripts/train.py
+  tb alerts --preset low-noise
+  tb tasks save training -- python scripts/train.py
+  tb tasks run training`)
 }
 func main() { os.Exit(execute(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }

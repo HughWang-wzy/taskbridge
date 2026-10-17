@@ -7,10 +7,117 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestAlertsPresetAndExplicitOverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want map[string]int
+	}{
+		{"low noise", []string{"--preset", "low-noise"}, map[string]int{"success": 2, "failure": 4, "question": 4, "interrupt": 2, "lost": 5, "manual": 2}},
+		{"quiet alias", []string{"--preset", "quiet"}, map[string]int{"success": 2, "failure": 4, "question": 4, "interrupt": 2, "lost": 5, "manual": 2}},
+		{"standard", []string{"--preset", "standard"}, map[string]int{"success": 3, "failure": 4, "question": 4, "interrupt": 4, "lost": 5, "manual": 3}},
+		{"normal alias", []string{"--preset", "normal"}, map[string]int{"success": 3, "failure": 4, "question": 4, "interrupt": 4, "lost": 5, "manual": 3}},
+		{"important", []string{"--preset", "important"}, map[string]int{"success": 4, "failure": 5, "question": 4, "interrupt": 4, "lost": 5, "manual": 4}},
+		{"override after", []string{"--preset", "important", "--success", "min", "--lost", "low"}, map[string]int{"success": 1, "failure": 5, "question": 4, "interrupt": 4, "lost": 2, "manual": 4}},
+		{"override before", []string{"--success", "min", "--lost", "low", "--preset", "important"}, map[string]int{"success": 1, "failure": 5, "question": 4, "interrupt": 4, "lost": 2, "manual": 4}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TB_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+			if err := saveConfig(Config{URL: "https://worker.example", Token: "secret", CodexStopTitle: "Keep title", CodexFinalOutput: true, AlertPriorities: map[string]int{"success": 1}}); err != nil {
+				t.Fatal(err)
+			}
+			var out, errOut bytes.Buffer
+			if code := configureAlerts(tc.args, &out, &errOut); code != 0 {
+				t.Fatalf("code=%d errors=%s", code, errOut.String())
+			}
+			got, err := loadConfig()
+			if err != nil || !reflect.DeepEqual(got.AlertPriorities, tc.want) || got.Token != "secret" || got.CodexStopTitle != "Keep title" || !got.CodexFinalOutput {
+				t.Fatalf("saved config=%+v error=%v", got, err)
+			}
+		})
+	}
+}
+
+func TestAlertsInvalidPresetDoesNotChangeConfig(t *testing.T) {
+	t.Setenv("TB_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	if err := saveConfig(Config{URL: "https://worker.example", Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(configPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"--success", "min", "--preset", "not-a-preset"},
+		{"--preset", "important", "--failure", "6"},
+		{"--preset", "important", "unexpected"},
+	} {
+		var out, errOut bytes.Buffer
+		if code := configureAlerts(args, &out, &errOut); code != 2 {
+			t.Fatalf("args=%v code=%d errors=%s", args, code, errOut.String())
+		}
+		after, err := os.ReadFile(configPath())
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("invalid args=%v changed config: %v", args, err)
+		}
+	}
+}
+
+func TestAlertConfigReadsAreReadOnlyAndSavingRejectsInvalidLevels(t *testing.T) {
+	t.Setenv("TB_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	if err := saveConfig(Config{URL: "https://worker.example", Token: "secret", AlertPriorities: map[string]int{"success": 2}}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(configPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	configs, err := readAlertConfigs()
+	if err != nil || len(configs) != 1 || configs[0].Path != configPath() || configs[0].Config.priority("success") != 2 {
+		t.Fatalf("configs=%+v error=%v", configs, err)
+	}
+	configs[0].Config.AlertPriorities["success"] = 5
+	for _, levels := range []map[string]int{{"success": 2, "failure": 0}, {"success": 6}, {"typo": 4}} {
+		var out, errOut bytes.Buffer
+		if code := saveAlertLevels(levels, &out, &errOut); code != 2 {
+			t.Fatalf("levels=%v code=%d errors=%s", levels, code, errOut.String())
+		}
+	}
+	after, err := os.ReadFile(configPath())
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("reading or invalid save changed config: %v", err)
+	}
+}
+
+func TestAlertsReadAllConfigsBeforeSaving(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("APPDATA", dir)
+	t.Setenv("TB_CONFIG", "")
+	if err := saveConfig(Config{URL: "https://worker.example", Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(configPath())
+	if err := os.WriteFile(filepath.Join(filepath.Dir(configPath()), "codex.json"), []byte(`invalid json`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if code := configureAlerts([]string{"--preset", "important"}, &out, &errOut); code != 1 {
+		t.Fatalf("code=%d errors=%s", code, errOut.String())
+	}
+	after, _ := os.ReadFile(configPath())
+	if !bytes.Equal(before, after) {
+		t.Fatal("malformed Codex configuration caused partial update")
+	}
+}
 
 func TestAlertsSavesBothClientConfigsAndRejectsInvalidLevels(t *testing.T) {
 	dir := t.TempDir()

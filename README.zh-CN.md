@@ -9,10 +9,10 @@
 例如，安装完成后运行模型训练：
 
 ```bash
-tb run -n "模型训练" -- python train.py
+tb run python train.py
 ```
 
-命令结束时，TaskBridge 会把结果推送到手机。安装 Codex Hook 后，也可以接收 Codex 任务提醒。
+命令结束时，TaskBridge 会把结果推送到手机，并自动用 `train` 作为任务名。安装 Codex Hook 后，也可以接收 Codex 任务提醒。
 
 ## 安装
 
@@ -34,6 +34,25 @@ Invoke-WebRequest https://github.com/HughWang-wzy/taskbridge/releases/latest/dow
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
+## 日常使用
+
+在终端输入 `tb`，用方向键选择运行任务、常用任务、提醒设置、测试提醒或检查连接。长命令可直接粘贴，运行前会显示完整命令和工作目录；确认后回到正常终端，训练日志和进度条照常显示。
+
+```bash
+tb                 # 打开主菜单
+tb settings        # 调整提醒等级，无需记参数
+tb run python train.py  # 直接运行，自动命名为 train
+```
+
+常跑的命令可以收藏，之后从菜单选择、检查输出目录并运行，也能直接用短命令启动：
+
+```bash
+tb tasks save training -n "模型训练" -- python train.py
+tb tasks run training
+```
+
+菜单只在交互终端中打开；`tb --help` 随时查看命令帮助，脚本和自动化继续使用明确的子命令。详见[运行与收藏任务](docs/deployment.zh-CN.md#运行与收藏任务)。
+
 ## 这些名称是什么
 
 | 名称 | 作用 |
@@ -49,14 +68,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 ## 设置提醒等级
 
-例如，让正常完成静默提醒，失败和需要回答的问题使用较高等级：
+运行 `tb settings` 打开提醒设置，按 ↑↓ 选择事件、←→ 调整等级，Enter 保存全部修改；Esc 放弃本次修改。也可选“低打扰 / 标准 / 重要任务”预设，或直接保存预设：
 
 ```bash
-tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
-tb alerts
+tb alerts --preset low-noise
+tb alerts                    # 查看当前等级
 ```
 
-等级为 `min`（1）、`low`（2）、`normal`（3）、`high`（4）、`urgent`（5）。Android 可在 ntfy 的 **Channel settings（通知渠道设置）** 中为各等级设置声音和振动；iPhone 的声音还受 iOS 权限、静音和专注模式控制，`urgent` 不保证强制响铃。详见[等级、单次任务覆盖与手机设置](docs/deployment.zh-CN.md#设置提醒等级)。
+低打扰预设把正常完成、Codex 中断和手动通知设为 2，失败和提问设为 4，失联设为 5。等级为 `min`（1）到 `urgent`（5）。Android 可在 ntfy 的 **Channel settings（通知渠道设置）** 中为各等级设置声音和振动；iPhone 的声音还受 iOS 权限、静音和专注模式控制，`urgent` 不保证强制响铃。详见[预设、单次任务覆盖与手机设置](docs/deployment.zh-CN.md#设置提醒等级)。
 
 ## 文档
 

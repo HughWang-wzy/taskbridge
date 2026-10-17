@@ -35,6 +35,8 @@ jobs:
         run: python3 test/first_run_update_smoke.py
       - name: Build release archives
         run: npm run package
+      - name: Test Linux terminal UI
+        run: python3 test/terminal_ui_smoke.py
       - name: Test Linux installer
         run: python3 test/installer_smoke.py
       - uses: actions/upload-artifact@v7.0.1
@@ -91,5 +93,7 @@ jobs:
           cache: false
       - name: Build archives
         run: bash scripts/package.sh
+      - name: Test macOS terminal UI
+        run: python3 test/terminal_ui_smoke.py
       - name: Test macOS installer
         run: python3 test/installer_smoke.py

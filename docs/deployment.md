@@ -81,9 +81,67 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 The installer checks the release SHA-256 and runs `tb doctor`. It keeps an existing configuration by default. At least one computer must run `tb relay` to deliver queued notices. An interrupted Codex turn first spools locally, so that computer also needs a relay. On Linux, ordinary users get a systemd user service and root prefers a system service. If no service manager is available, the installer starts a temporary background relay and warns that it will not restart after a reboot; use the host's startup manager for persistence.
 
+## Run and save tasks
+
+After installation, enter `tb` or `tb menu` in an interactive terminal. Use ↑↓ to select and Enter to open, or press 1–9 to choose directly; Esc returns. The main menu offers task execution, saved tasks, reminder settings, test notifications, and connection checks. `tb --help` always displays help; without an interactive terminal, `tb` also prints help. `tb menu` and `tb settings` require an interactive terminal. Use explicit subcommands in scripts and automation.
+
+### Run a command directly
+
+Prefix your existing command with `tb run`. Reminder levels come from the defaults saved on this computer:
+
+```bash
+tb run .venv/bin/python scripts/run_mouth_parallel.py --help
+```
+
+The task is named `run_mouth_parallel` automatically. `python scripts/train.py` becomes `train`, and `python -m package` becomes `package`. Supply `-n` to choose another name. The standalone `--` separator is optional; keep it to mark the start of the command explicitly. TaskBridge flags go before the command being run:
+
+```bash
+tb run -n "Model training" -p high -- python train.py
+```
+
+Successful tasks notify after running for at least 60 seconds by default; failures notify regardless of duration. The command runs in the current terminal. TaskBridge waits for it and preserves its exit code.
+
+### Paste a long command in the menu
+
+Choose Run task and paste the command you would normally execute. Paste multiple lines directly or use Ctrl+J to insert a newline. Enter submits, unless the line ends with a continuation character (`\` on Linux/macOS, `^` on Windows). Edit with arrow keys, Home, End, and Backspace; Ctrl+U clears the field and Esc cancels. Leave the task name blank to infer it from the script.
+
+Linux/macOS commands run through `/bin/sh -c`, with shell quoting and redirection but without your interactive shell aliases. Windows uses the command processor specified by `ComSpec` (usually `cmd.exe`) and cmd syntax. Invoke Bash or PowerShell explicitly if a command depends on their specific syntax.
+
+Review the full command and working directory before confirming execution; use PgUp/PgDn to scroll through long details. The menu closes and restores the terminal before forwarding standard input, output, and error to the command. Training logs, progress bars, and interactive input keep working in the terminal; no full-screen dashboard remains open while the task runs.
+
+### Save recurring commands
+
+Use Saved tasks to save, edit, or delete a command. A favorite contains an identifier, display name, command, and working directory. Preview it before running, check parameters such as output directories, and edit them first when needed. CLI-created favorites edit arguments individually; favorites pasted through the menu edit the original shell text. Deletion requires confirmation.
+
+Manage favorites from the command line as well:
+
+```bash
+tb tasks save mouth -n "Mouth training" -- .venv/bin/python scripts/run_mouth_parallel.py --help
+tb tasks list
+tb tasks run mouth
+tb tasks remove mouth
+```
+
+`save` records the current working directory. `run` executes immediately from that directory without a confirmation menu, making it suitable for scripts; relative paths work even when you launch it elsewhere. CLI saves retain argument boundaries; menu saves retain explicit shell command text. Favorites live in `tasks.json` beside this computer's client configuration. They are not uploaded to Cloudflare or automatically synchronized to another computer.
+
 ## Choose reminder levels
 
-TaskBridge attaches an ntfy priority to each notification. Configure different levels for different events, then choose their sound and vibration on the phone. Run `tb alerts` to display the effective settings. This example makes successful completion and interrupted Codex turns quieter:
+TaskBridge attaches an ntfy priority to each notification. Configure different levels for different events, then choose their sound and vibration on the phone. Run `tb settings` or choose Reminder settings in the `tb` menu. Use ↑↓ to select the preset or an event and ←→ to change the preset or adjust a level from 1 to 5. Choose Low noise, Standard, or Important tasks as a starting point, then adjust individual values. Enter saves all changes from any row; Esc discards changes.
+
+For fewer interruptions, save the Low noise preset once. Future `tb run` commands use it automatically:
+
+```bash
+tb alerts --preset low-noise
+tb alerts
+```
+
+| Preset | Success / recovered | Failure | Question | Codex interruption | Lost contact | Manual |
+| --- | --- | --- | --- | --- | --- | --- |
+| Low noise `low-noise` | 2 | 4 | 4 | 2 | 5 | 2 |
+| Standard `standard` | 3 | 4 | 4 | 4 | 5 | 3 |
+| Important tasks `important` | 4 | 5 | 4 | 4 | 5 | 4 |
+
+Use `standard` to restore the original defaults. Explicit flags remain available for precise settings:
 
 ```bash
 tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal

@@ -9,10 +9,10 @@ The installer guides you through deploying the service in **your own Cloudflare 
 For example, after installation, run a training job:
 
 ```bash
-tb run -n "Model training" -- python train.py
+tb run python train.py
 ```
 
-TaskBridge sends the result to your phone when the command ends. Codex Hooks can also send Codex task alerts.
+TaskBridge sends the result to your phone when the command ends and automatically names the task `train`. Codex Hooks can also send Codex task alerts.
 
 ## Install
 
@@ -34,6 +34,25 @@ Invoke-WebRequest https://github.com/HughWang-wzy/taskbridge/releases/latest/dow
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
+## Everyday use
+
+Enter `tb` in a terminal and use the arrow keys to run a task, manage favorites, adjust reminder levels, send a test, or check the connection. Paste a long command and review its full text and working directory before starting. The menu closes before execution, so your command keeps its usual terminal logs and progress bars.
+
+```bash
+tb                       # Open the main menu
+tb settings              # Adjust reminder levels without flags
+tb run python train.py   # Run directly; the task name is train
+```
+
+Save recurring commands as favorites. Choose one in the menu, check its output directory, and run it, or use a short command:
+
+```bash
+tb tasks save training -n "Model training" -- python train.py
+tb tasks run training
+```
+
+Menus require an interactive terminal. Use `tb --help` for command help; explicit subcommands remain available for scripts and automation. See [Run and save tasks](docs/deployment.md#run-and-save-tasks).
+
 ## What the components do
 
 | Component | Purpose |
@@ -49,14 +68,14 @@ During installation you can set the task topic, completion title and body, and w
 
 ## Choose reminder levels
 
-Keep successful tasks quiet and give failures or questions more attention:
+Run `tb settings` to open the reminder editor: ↑↓ selects an event, ←→ changes its level, and Enter saves all changes. Esc discards edits. Choose a Low noise, Standard, or Important tasks preset, or save a preset directly:
 
 ```bash
-tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
-tb alerts
+tb alerts --preset low-noise
+tb alerts                    # Show the current levels
 ```
 
-Levels are `min` (1), `low` (2), `normal` (3), `high` (4), and `urgent` (5). On Android, set each level's sound and vibration in ntfy's **Channel settings**. On iPhone, sound also depends on iOS permissions, silent mode, and Focus settings; `urgent` does not guarantee an audible alarm. See [levels, per-task overrides, and phone setup](docs/deployment.md#choose-reminder-levels).
+Low noise sets successful completion, interrupted Codex turns, and manual notices to 2, failures and questions to 4, and lost contact to 5. Levels range from `min` (1) to `urgent` (5). On Android, set each level's sound and vibration in ntfy's **Channel settings**. On iPhone, sound also depends on iOS permissions, silent mode, and Focus settings; `urgent` does not guarantee an audible alarm. See [presets, per-task overrides, and phone setup](docs/deployment.md#choose-reminder-levels).
 
 ## Documentation
 

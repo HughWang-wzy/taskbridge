@@ -81,9 +81,67 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 安装器会校验发布包的 SHA-256、保存用户配置并运行 `tb doctor`。已有客户端配置默认保留。至少一台电脑需要运行 `tb relay`，失联等队列通知才能送达；中断通知先保存在发生中断的电脑上，该电脑也需运行 relay。选后台 relay 时，Linux 普通用户优先使用 systemd 用户服务；root 优先使用系统级 systemd 服务。若无可用服务管理器，安装器会启动临时后台进程，并明确提示**重启后不会自动恢复**；持久运行需配置该主机自己的启动管理器。
 
+## 运行与收藏任务
+
+安装完成后，在交互终端输入 `tb` 或 `tb menu`，用 ↑↓ 选择、Enter 打开，或用数字 1–9 直接选择；Esc 返回。主菜单提供运行任务、常用任务、提醒设置、测试提醒和检查连接。`tb --help` 随时显示帮助；没有交互终端时，`tb` 也会打印帮助。`tb menu` 和 `tb settings` 需要交互终端。自动化脚本继续使用下面的明确子命令。
+
+### 直接运行命令
+
+在原命令前加 `tb run` 即可，提醒等级使用本机已保存的设置：
+
+```bash
+tb run .venv/bin/python scripts/run_mouth_parallel.py --help
+```
+
+任务会自动命名为 `run_mouth_parallel`；`python scripts/train.py` 用 `train`，`python -m package` 用 `package`。需要其他名称时使用 `-n`。独立的 `--` 可选，保留它能明确标记被运行命令的开始；TaskBridge 的选项要放在被运行命令前：
+
+```bash
+tb run -n "模型训练" -p high -- python train.py
+```
+
+成功任务默认运行满 60 秒才发通知；失败会通知。命令继续在当前终端运行，TaskBridge 等待它结束并保留它的退出码。
+
+### 在菜单中粘贴长命令
+
+选择运行任务，粘贴原本要在终端执行的命令。支持直接粘贴多行，或用 Ctrl+J 插入换行；Enter 提交，行尾有续行符时则继续输入（Linux/macOS 用 `\`，Windows 用 `^`）。编辑时可用方向键、Home、End 和退格，Ctrl+U 清空，Esc 放弃。任务名称可留空，自动从脚本名生成。
+
+Linux/macOS 的命令由 `/bin/sh -c` 执行，支持 Shell 引号和重定向，但不读取交互终端的别名；Windows 使用 `ComSpec` 指定的命令处理器（通常是 `cmd.exe`），按 cmd 语法处理。若命令依赖 Bash 或 PowerShell 的特有语法，请明确调用对应解释器。
+
+启动前会显示完整命令与工作目录，长命令可用 PgUp/PgDn 翻看详情，确认后才会执行。界面会退出并恢复终端状态，再把标准输入、输出和错误交给命令；训练程序的日志、进度条和交互输入照常使用。运行期间不占用额外的全屏任务面板。
+
+### 收藏常用命令
+
+在常用任务菜单中保存、编辑或删除命令。收藏包含标识、显示名称、命令和工作目录；运行前先预览，检查输出目录等参数，需要时先编辑再启动。命令行创建的收藏逐项编辑参数，菜单粘贴创建的收藏则编辑原始 Shell 文本。删除需要确认。
+
+命令行也能管理收藏：
+
+```bash
+tb tasks save mouth -n "Mouth training" -- .venv/bin/python scripts/run_mouth_parallel.py --help
+tb tasks list
+tb tasks run mouth
+tb tasks remove mouth
+```
+
+`save` 保存当前工作目录，`run` 从该目录立即运行原命令，不弹出确认菜单，适合脚本调用；换一个终端目录也不影响相对路径。命令行保存时保留参数边界，菜单保存时保留明确的 Shell 命令文本。收藏保存在本机客户端配置旁的 `tasks.json`，不上传 Cloudflare，也不会自动同步到其他电脑。
+
 ## 设置提醒等级
 
-TaskBridge 会为通知附上 ntfy 优先级。你可以按事件设置不同等级，再配合手机端决定声音和振动。运行 `tb alerts` 可查看当前生效的设置。例如，让正常完成和 Codex 中断使用较低等级：
+TaskBridge 会为通知附上 ntfy 优先级。你可以按事件设置不同等级，再配合手机端决定声音和振动。运行 `tb settings`，或在 `tb` 主菜单选择提醒设置：↑↓ 选择预设或事件，←→ 切换方案或调整 1–5 级；可先选低打扰、标准或重要任务预设，再按需微调。在任意行按 Enter 保存全部修改，Esc 放弃本次修改。
+
+如果只想少打扰，执行一次预设即可，之后每次 `tb run` 都会使用它：
+
+```bash
+tb alerts --preset low-noise
+tb alerts
+```
+
+| 预设 | 正常完成 / 恢复 | 失败 | 提问 | Codex 中断 | 失联 | 手动通知 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 低打扰 `low-noise` | 2 | 4 | 4 | 2 | 5 | 2 |
+| 标准 `standard` | 3 | 4 | 4 | 4 | 5 | 3 |
+| 重要任务 `important` | 4 | 5 | 4 | 4 | 5 | 4 |
+
+`standard` 可恢复原有默认等级。需要精确设置时，原有参数仍可使用：
 
 ```bash
 tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
