@@ -47,6 +47,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 During installation you can set the task topic, completion title and body, and whether to send the final assistant reply to the phone. Templates support `{topic}`, `{duration}`, `{output}`, and other variables. Final-answer forwarding is off by default. See [Codex notification settings](docs/deployment.md#customize-codex-alerts).
 
+## Choose reminder levels
+
+Keep successful tasks quiet and give failures or questions more attention:
+
+```bash
+tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
+tb alerts
+```
+
+Levels are `min` (1), `low` (2), `normal` (3), `high` (4), and `urgent` (5). On Android, set each level's sound and vibration in ntfy's **Channel settings**. On iPhone, sound also depends on iOS permissions, silent mode, and Focus settings; `urgent` does not guarantee an audible alarm. See [levels, per-task overrides, and phone setup](docs/deployment.md#choose-reminder-levels).
+
 ## Documentation
 
 - [Full deployment, signup, and environment repair](docs/deployment.md)

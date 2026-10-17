@@ -81,6 +81,63 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 安装器会校验发布包的 SHA-256、保存用户配置并运行 `tb doctor`。已有客户端配置默认保留。至少一台电脑需要运行 `tb relay`，失联等队列通知才能送达；中断通知先保存在发生中断的电脑上，该电脑也需运行 relay。选后台 relay 时，Linux 普通用户优先使用 systemd 用户服务；root 优先使用系统级 systemd 服务。若无可用服务管理器，安装器会启动临时后台进程，并明确提示**重启后不会自动恢复**；持久运行需配置该主机自己的启动管理器。
 
+## 设置提醒等级
+
+TaskBridge 会为通知附上 ntfy 优先级。你可以按事件设置不同等级，再配合手机端决定声音和振动。运行 `tb alerts` 可查看当前生效的设置。例如，让正常完成和 Codex 中断使用较低等级：
+
+```bash
+tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
+tb alerts
+```
+
+命令会保存本机客户端 `config.json`，并同步更新已有的 Codex `codex.json`。若显式设置了 `TB_CONFIG`，则只更新该文件。配置属于本机；其他电脑需要分别设置。已在运行的 Codex MCP 会在启动时读取配置，修改提问等级后需重启 Codex/MCP；完成通知的 Hook 会在下次执行时读取新值。
+
+| 等级 | 可用参数值 | Android 默认表现 |
+| --- | --- | --- |
+| 最低 | `1`、`min`、`silent` | 无声音、无振动，进入其他通知 |
+| 较低 | `2`、`low` | 无声音、无振动 |
+| 普通 | `3`、`normal`、`default` | 普通提示音、短振动 |
+| 较高 | `4`、`high` | 提示音、较长振动、横幅 |
+| 紧急 | `5`、`urgent`、`max` | 提示音、更长振动、横幅 |
+
+名称不区分大小写。以上是 [ntfy 的优先级默认行为](https://docs.ntfy.sh/publish/#message-priority)，手机设置可改变实际表现。`silent` 只是优先级 1 的别名，不能强制手机静音。
+
+未自行修改时，保留原有默认等级：
+
+| 事件 | 默认等级 |
+| --- | --- |
+| 正常完成、失联后恢复、手动通知 | `normal`（3） |
+| 失败、等待回答的问题、Codex 中断 | `high`（4） |
+| 任务失联（`LOST`） | `urgent`（5） |
+
+单次手动通知可覆盖等级：
+
+```bash
+tb notify -p low --title 测试 '低等级通知'
+```
+
+运行训练时，可分别指定正常完成、失败和失联的等级：
+
+```bash
+tb run -n training --priority high --failure-priority urgent --lost-priority urgent -- python train.py
+```
+
+`tb run` 的 `--priority`（或 `-p`）只影响正常完成通知；它不会跳过“成功任务运行满 60 秒才通知”的原有门槛。失败和失联使用各自等级，恢复通知跟随正常完成等级。relay 会保留通知入队时的等级，因此修改默认值不会改变已入队的通知。
+
+Codex 可分别设置完成、提问和中断等级：
+
+```bash
+tb hook codex --priority low --question-priority high --interrupt-priority low
+```
+
+这些参数可以与下节的标题、正文设置一起使用。更改 Hook 后，重启 Codex，并查看、信任更新后的 Hook。各台发送通知的电脑都需更新 `tb`；自定义失联等级和 MCP 提问等级还需要部署更新后的 Worker，无需迁移 D1。在保留原 `wrangler.jsonc` 的部署源码目录更新代码后，执行 `npm run deploy`。
+
+### 配合手机设置声音
+
+**Android：** 打开 ntfy → Settings → **Channel settings（通知渠道设置）**，或进入 Android 的 ntfy 通知设置。每个优先级都有独立渠道，可分别选择声音、振动、横幅及是否绕过勿扰模式。等级高并不代表一定能绕过系统设置。参见 [ntfy 手机设置文档](https://docs.ntfy.sh/subscribe/phone/#message-priority)。
+
+**iPhone：** 在 iOS 设置中允许 ntfy 通知和声音，并检查专注模式配置。截至 2026 年 10 月 18 日，ntfy iOS 当前稳定版为 v1.7.0；优先级 5 穿透静音、勿扰的“关键警报”功能仍列在未发布的 v1.8.0 中。因此，当前稳定版的 `urgent` 不能保证强制响铃，也没有 Android 那样逐等级配置通知渠道的界面。参见[官方发布说明](https://docs.ntfy.sh/releases/#ntfy-ios-app-v180-unreleased)和[当前 iOS 设置实现](https://github.com/binwiederhier/ntfy-ios/blob/v1.7.0/ntfy/Views/Settings/SettingsView.swift)。
+
 ## 自定义 Codex 通知
 
 安装时选择 Codex 集成后，可以选择自定义完成通知。也可稍后在已安装的电脑上运行：

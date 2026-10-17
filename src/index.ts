@@ -98,6 +98,20 @@ function metadataToJson(value: unknown): string | null {
 	}
 }
 
+function validPriority(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 5;
+}
+
+function taskNotificationPriority(metadataJson: string | null, event: 'lost' | 'recovered', fallback: number): number {
+	try {
+		const metadata = JSON.parse(metadataJson ?? 'null') as {notification_priorities?: Partial<Record<'lost' | 'recovered', unknown>>} | null;
+		const priority = metadata?.notification_priorities?.[event];
+		return validPriority(priority) ? priority : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
 interface NotificationInput {
 	title: string;
 	message: string;
@@ -160,6 +174,7 @@ export default {
 				!body.payload.message.trim() || body.payload.title.length>200 || body.payload.message.length>3000) {
 				return json({ok:false,error:'invalid_notification'},400);
 			}
+			if (body.payload.priority !== undefined && !validPriority(body.payload.priority)) return json({ok:false,error:'invalid_priority'},400);
 			const created=await queueNotification(env,body.id,body.payload);
 			return json({ok:true,id:body.id,queued:true,idempotent:!created},created?201:200);
 		}
@@ -219,8 +234,9 @@ export default {
 		if (request.method === 'POST' && url.pathname === '/v1/questions') {
 			const auth = await authorize(request,env,'questions:write');
 			if (!auth) return json({ok:false,error:'unauthorized'},401);
-			let body: {question_type?:string; question?:string; options?:string[]; session_id?:string; turn_id?:string; task_id?:string; timeout_seconds?:number};
+			let body: {question_type?:string; question?:string; options?:string[]; session_id?:string; turn_id?:string; task_id?:string; timeout_seconds?:number; priority?:number};
 			try {body=await request.json() as typeof body} catch {return json({ok:false,error:'invalid_json'},400)}
+			if (body.priority !== undefined && !validPriority(body.priority)) return json({ok:false,error:'invalid_priority'},400);
 			const type=body.question_type;
 			if (!['confirm','choice','text'].includes(type ?? '') || !body.question?.trim() || body.question.length>3000) return json({ok:false,error:'invalid_question'},400);
 			const options=type==='confirm' ? ['yes','no'] : type==='choice' ? body.options : [];
@@ -234,7 +250,7 @@ export default {
 			if (options && options.length<=3 && type!=='text') {
 				for (const option of options) actions.push({action:'http',label:option,url:`${url.origin}/v1/questions/${id}/answer?token=${secret}`,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answer:option}),clear:true});
 			} else actions.push({action:'view',label:'Answer',url:answerURL});
-			await queueNotification(env,`question:${id}:created`,{title:'❓ Codex needs your answer',message:body.question.trim(),priority:4,actions});
+			await queueNotification(env,`question:${id}:created`,{title:'❓ Codex needs your answer',message:body.question.trim(),priority:body.priority ?? 4,actions});
 			return json({ok:true,id,answer_url:answerURL,expires_at:nowMs()+timeout*1000},201);
 		}
 
@@ -384,12 +400,8 @@ export default {
 				);
 			}
 
-			const priority =
-				Number.isInteger(body.priority) &&
-				body.priority! >= 1 &&
-				body.priority! <= 5
-					? body.priority!
-					: 3;
+			if (body.priority !== undefined && !validPriority(body.priority)) return json({ok:false,error:'invalid_priority'},400);
+			const priority = body.priority ?? 3;
 
 			const tags = Array.isArray(body.tags)
 				? body.tags
@@ -581,7 +593,7 @@ export default {
 							`${task.name}\n\n` +
 							`Host: ${task.host ?? "unknown"}\n` +
 							`任务重新恢复心跳。`,
-						priority: 3,
+						priority: taskNotificationPriority(task.metadata_json, 'recovered', 3),
 						tags: ["green_circle"],
 					});
 				} catch {
@@ -758,8 +770,8 @@ export default {
 		const timeoutSeconds = Number(env.LOST_TIMEOUT_SECONDS ?? '420');
 		const cutoff = nowMs() - (Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds : 420) * 1000;
 		const stale = await env.DB.prepare(
-			"SELECT id, name, host, last_heartbeat FROM tasks WHERE status = 'running' AND last_heartbeat <= ? LIMIT 100",
-		).bind(cutoff).all<Pick<TaskRow, 'id' | 'name' | 'host' | 'last_heartbeat'>>();
+			"SELECT id, name, host, last_heartbeat, metadata_json FROM tasks WHERE status = 'running' AND last_heartbeat <= ? LIMIT 100",
+		).bind(cutoff).all<Pick<TaskRow, 'id' | 'name' | 'host' | 'last_heartbeat' | 'metadata_json'>>();
 		for (const task of stale.results) {
 			const update = await env.DB.prepare(
 				"UPDATE tasks SET status = 'lost' WHERE id = ? AND status = 'running' AND last_heartbeat <= ?",
@@ -772,7 +784,7 @@ export default {
 				await queueNotification(env,`task:${task.id}:lost:${task.last_heartbeat}`, {
 					title: '🚨 Task LOST',
 					message: `${task.name}\n\nHost: ${task.host ?? 'unknown'}\n超过 ${Math.floor(timeoutSeconds)} 秒没有心跳。`,
-					priority: 5,
+					priority: taskNotificationPriority(task.metadata_json, 'lost', 5),
 					tags: ['rotating_light'],
 				});
 			} catch (error) {

@@ -15,11 +15,12 @@ func TestRunPreservesOutputAndExitCode(t *testing.T) {
 		t.Skip("shell syntax differs")
 	}
 	for _, tc := range []struct {
-		name   string
-		exit   int
-		output string
+		name     string
+		exit     int
+		output   string
+		priority int
 	}{
-		{"success", 0, "hello"}, {"failure", 7, "bad"},
+		{"success", 0, "hello", 3}, {"failure", 7, "bad", 4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
@@ -52,7 +53,7 @@ func TestRunPreservesOutputAndExitCode(t *testing.T) {
 			if len(calls) != 2 || calls[0] != "/v1/tasks/start" || !strings.HasSuffix(calls[1], "/finish") {
 				t.Fatalf("calls=%v", calls)
 			}
-			if len(published) != 1 || published[0]["topic"] != "phone-topic" || published[0]["message"]=="" {
+			if len(published) != 1 || published[0]["topic"] != "phone-topic" || published[0]["message"] == "" || published[0]["priority"] != float64(tc.priority) {
 				t.Fatalf("published=%v", published)
 			}
 		})

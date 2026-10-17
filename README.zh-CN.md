@@ -47,6 +47,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 安装时可设置任务名称、完成标题和正文，还可选择是否把最终回复发到手机。支持 `{topic}`、`{duration}`、`{output}` 等变量；最终回复默认关闭。示例和限制见 [Hook 通知配置](docs/deployment.zh-CN.md#自定义-codex-通知)。
 
+## 设置提醒等级
+
+例如，让正常完成静默提醒，失败和需要回答的问题使用较高等级：
+
+```bash
+tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
+tb alerts
+```
+
+等级为 `min`（1）、`low`（2）、`normal`（3）、`high`（4）、`urgent`（5）。Android 可在 ntfy 的 **Channel settings（通知渠道设置）** 中为各等级设置声音和振动；iPhone 的声音还受 iOS 权限、静音和专注模式控制，`urgent` 不保证强制响铃。详见[等级、单次任务覆盖与手机设置](docs/deployment.zh-CN.md#设置提醒等级)。
+
 ## 文档
 
 - [完整部署、注册与环境修复](docs/deployment.zh-CN.md)

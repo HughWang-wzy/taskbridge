@@ -30,7 +30,7 @@ func TestInterruptSpoolsQuicklyAndRelaySubmitsOnce(t *testing.T) {
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	defer server.Close()
-	config := Config{URL: server.URL, Token: "token"}
+	config := Config{URL: server.URL, Token: "token", AlertPriorities: map[string]int{"interrupt": 2}}
 	var errOut bytes.Buffer
 	start := time.Now()
 	input := `{"session_id":"s1","turn_id":"t1","hook_event_name":"Interrupt"}`
@@ -40,10 +40,11 @@ func TestInterruptSpoolsQuicklyAndRelaySubmitsOnce(t *testing.T) {
 	if eventBody != nil || noticeBody != nil {
 		t.Fatal("Interrupt hook performed network I/O")
 	}
+	config.AlertPriorities["interrupt"] = 5 // A later setting must not change the spooled event.
 	if e := flushCodexInterrupts(config, filepath.Join(dir, "codex-interrupts")); e != nil {
 		t.Fatal(e)
 	}
-	if eventBody["event"] != "Interrupt" || noticeBody["id"] == "" {
+	if eventBody["event"] != "Interrupt" || noticeBody["id"] == "" || noticeBody["payload"].(map[string]any)["priority"] != float64(2) {
 		t.Fatalf("event=%v notice=%v", eventBody, noticeBody)
 	}
 	entries, e := os.ReadDir(filepath.Join(dir, "codex-interrupts"))
@@ -86,7 +87,7 @@ func TestCodexStopTemplateDurationAndOptionalFinalOutput(t *testing.T) {
 		_, _ = w.Write([]byte(`{"ok":true,"duplicate":false}`))
 	}))
 	defer worker.Close()
-	c := Config{URL: worker.URL, Token: "token", NtfyURL: ntfy.URL, NtfyTopic: "phone-topic", CodexTopic: "training", CodexStopTitle: "{topic} done", CodexStopBody: "{topic} task finished in {duration}\n{output}", CodexFinalOutput: true}
+	c := Config{URL: worker.URL, Token: "token", NtfyURL: ntfy.URL, NtfyTopic: "phone-topic", CodexTopic: "training", CodexStopTitle: "{topic} done", CodexStopBody: "{topic} task finished in {duration}\n{output}", CodexFinalOutput: true, AlertPriorities: map[string]int{"success": 2}}
 	var errOut bytes.Buffer
 	handleHook(c, strings.NewReader(`{"session_id":"s1","turn_id":"t1","hook_event_name":"UserPromptSubmit"}`), &errOut)
 	start := turnStartPath(hookInput{SessionID: "s1", TurnID: "t1"})
@@ -96,7 +97,7 @@ func TestCodexStopTemplateDurationAndOptionalFinalOutput(t *testing.T) {
 	}
 	input := `{"session_id":"s1","turn_id":"t1","hook_event_name":"Stop","last_assistant_message":"All tests passed"}`
 	handleHook(c, strings.NewReader(input), &errOut)
-	if len(notices) != 1 || notices[0].Title != "training done" || !strings.Contains(notices[0].Message, "1m35s") || !strings.Contains(notices[0].Message, "All tests passed") {
+	if len(notices) != 1 || notices[0].Priority != 2 || notices[0].Title != "training done" || !strings.Contains(notices[0].Message, "1m35s") || !strings.Contains(notices[0].Message, "All tests passed") {
 		t.Fatalf("notices=%+v errors=%s", notices, errOut.String())
 	}
 	c.CodexFinalOutput = false
@@ -161,15 +162,22 @@ func TestMCPBeginAndAnswerQuestion(t *testing.T) {
 func TestNativeQuestionHookSendsPhoneReminder(t *testing.T) {
 	t.Setenv("TB_CONFIG", t.TempDir()+"/codex.json")
 	published := 0
-	ntfy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { published++; w.WriteHeader(200) }))
+	var priority int
+	ntfy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body ntfyMessage
+		json.NewDecoder(r.Body).Decode(&body)
+		priority = body.Priority
+		published++
+		w.WriteHeader(200)
+	}))
 	defer ntfy.Close()
-	cfg := Config{URL: "http://127.0.0.1:1", Token: "token", NtfyURL: ntfy.URL, NtfyTopic: "topic", QueueDir: t.TempDir()}
+	cfg := Config{URL: "http://127.0.0.1:1", Token: "token", NtfyURL: ntfy.URL, NtfyTopic: "topic", QueueDir: t.TempDir(), AlertPriorities: map[string]int{"question": 5}}
 	input := `{"session_id":"s","turn_id":"t","hook_event_name":"PreToolUse","tool_name":"request_user_input_async","tool_use_id":"u","tool_input":{"questions":[{"title":"Proceed?"}]}}`
 	var errOut bytes.Buffer
 	handleHook(cfg, strings.NewReader(input), &errOut)
 	markQuestionMirrored("Proceed?")
 	handleHook(cfg, strings.NewReader(input), &errOut)
-	if published != 1 {
+	if published != 1 || priority != 5 {
 		t.Fatalf("published=%d errors=%s", published, errOut.String())
 	}
 }

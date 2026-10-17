@@ -22,18 +22,19 @@ import (
 )
 
 type Config struct {
-	URL               string `json:"url"`
-	Token             string `json:"token"`
-	NtfyTopic         string `json:"ntfy_topic,omitempty"`
-	NtfyToken         string `json:"ntfy_token,omitempty"`
-	NtfyURL           string `json:"ntfy_url,omitempty"`
-	MinSuccessSeconds int    `json:"min_success_seconds,omitempty"`
-	QueueDir          string `json:"-"`
-	HeartbeatSeconds  int    `json:"heartbeat_seconds,omitempty"`
-	CodexTopic        string `json:"codex_topic,omitempty"`
-	CodexStopTitle    string `json:"codex_stop_title,omitempty"`
-	CodexStopBody     string `json:"codex_stop_body,omitempty"`
-	CodexFinalOutput  bool   `json:"codex_final_output,omitempty"`
+	URL               string         `json:"url"`
+	Token             string         `json:"token"`
+	NtfyTopic         string         `json:"ntfy_topic,omitempty"`
+	NtfyToken         string         `json:"ntfy_token,omitempty"`
+	NtfyURL           string         `json:"ntfy_url,omitempty"`
+	MinSuccessSeconds int            `json:"min_success_seconds,omitempty"`
+	QueueDir          string         `json:"-"`
+	HeartbeatSeconds  int            `json:"heartbeat_seconds,omitempty"`
+	CodexTopic        string         `json:"codex_topic,omitempty"`
+	CodexStopTitle    string         `json:"codex_stop_title,omitempty"`
+	CodexStopBody     string         `json:"codex_stop_body,omitempty"`
+	CodexFinalOutput  bool           `json:"codex_final_output,omitempty"`
+	AlertPriorities   map[string]int `json:"alert_priorities,omitempty"`
 }
 type queuedRequest struct {
 	Method string          `json:"method"`
@@ -65,7 +66,9 @@ func loadConfig() (Config, error) {
 	return c, e
 }
 func saveConfig(c Config) error {
-	p := configPath()
+	return saveConfigFile(configPath(), c)
+}
+func saveConfigFile(p string, c Config) error {
 	if e := os.MkdirAll(filepath.Dir(p), 0700); e != nil {
 		return e
 	}
@@ -194,6 +197,9 @@ func runTask(c Config, args []string, in io.Reader, out, errOut io.Writer) int {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	flags.SetOutput(errOut)
 	name := flags.String("n", "", "task name")
+	successPriority := priorityFlag(flags, "priority", "p", c.priority("success"))
+	failurePriority := priorityFlag(flags, "failure-priority", "", c.priority("failure"))
+	lostPriority := priorityFlag(flags, "lost-priority", "", c.priority("lost"))
 	if e := flags.Parse(args); e != nil {
 		return 2
 	}
@@ -211,7 +217,8 @@ func runTask(c Config, args []string, in io.Reader, out, errOut io.Writer) int {
 	id := newID()
 	host, _ := os.Hostname()
 	cwd, _ := os.Getwd()
-	start := map[string]any{"id": id, "name": *name, "kind": "terminal", "host": host, "platform": runtime.GOOS, "cwd": cwd, "command": strings.Join(command, " ")}
+	metadata := map[string]any{"notification_priorities": map[string]int{"lost": *lostPriority, "recovered": *successPriority}}
+	start := map[string]any{"id": id, "name": *name, "kind": "terminal", "host": host, "platform": runtime.GOOS, "cwd": cwd, "command": strings.Join(command, " "), "metadata": metadata}
 	sendOrQueue(c, "POST", "/v1/tasks/start", start, errOut)
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stdin = in
@@ -222,7 +229,7 @@ func runTask(c Config, args []string, in io.Reader, out, errOut io.Writer) int {
 	if startErr != nil {
 		fmt.Fprintf(errOut, "TaskBridge: %v\n", startErr)
 		sendOrQueue(c, "POST", "/v1/tasks/"+id+"/finish", map[string]any{"exit_code": 127, "error_summary": startErr.Error()}, errOut)
-		_ = sendSourceNotification(c, "task:"+id+":finished", ntfyMessage{Title: "❌ " + *name, Message: fmt.Sprintf("Task failed to start\nHost: %s\n%s", host, startErr), Priority: 4, Tags: []string{"x"}}, errOut)
+		_ = sendSourceNotification(c, "task:"+id+":finished", ntfyMessage{Title: "❌ " + *name, Message: fmt.Sprintf("Task failed to start\nHost: %s\n%s", host, startErr), Priority: *failurePriority, Tags: []string{"x"}}, errOut)
 		return 127
 	}
 	interval := c.HeartbeatSeconds
@@ -255,7 +262,8 @@ finished:
 			exit = 1
 		}
 	}
-	finish := map[string]any{"exit_code": exit, "metadata": map[string]any{"elapsed_ms": time.Since(started).Milliseconds()}}
+	metadata["elapsed_ms"] = time.Since(started).Milliseconds()
+	finish := map[string]any{"exit_code": exit, "metadata": metadata}
 	sendOrQueue(c, "POST", "/v1/tasks/"+id+"/finish", finish, errOut)
 	duration := time.Since(started)
 	minimum := c.MinSuccessSeconds
@@ -267,9 +275,9 @@ finished:
 	}
 	if exit != 0 || duration >= time.Duration(minimum)*time.Second {
 		message := fmt.Sprintf("Host: %s\nDuration: %s\nExit code: %d", host, duration.Truncate(time.Second), exit)
-		notice := ntfyMessage{Title: "✅ " + *name, Message: "Task completed\n" + message, Priority: 3, Tags: []string{"white_check_mark"}}
+		notice := ntfyMessage{Title: "✅ " + *name, Message: "Task completed\n" + message, Priority: *successPriority, Tags: []string{"white_check_mark"}}
 		if exit != 0 {
-			notice = ntfyMessage{Title: "❌ " + *name, Message: "Task failed\n" + message, Priority: 4, Tags: []string{"x"}}
+			notice = ntfyMessage{Title: "❌ " + *name, Message: "Task failed\n" + message, Priority: *failurePriority, Tags: []string{"x"}}
 		}
 		if e := sendSourceNotification(c, "task:"+id+":finished", notice, errOut); e != nil {
 			fmt.Fprintln(errOut, "TaskBridge:", e)
@@ -310,7 +318,16 @@ func initialize(args []string, in io.Reader, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "ntfy topic required")
 		return 2
 	}
-	if e = saveConfig(Config{URL: strings.TrimRight(*endpoint, "/"), Token: *token, NtfyTopic: *topic, HeartbeatSeconds: 120}); e != nil {
+	c, existingErr := loadConfig()
+	if existingErr != nil && !os.IsNotExist(existingErr) {
+		fmt.Fprintln(errOut, "TaskBridge: cannot read existing configuration:", existingErr)
+		return 1
+	}
+	c.URL, c.Token, c.NtfyTopic = strings.TrimRight(*endpoint, "/"), *token, *topic
+	if c.HeartbeatSeconds <= 0 {
+		c.HeartbeatSeconds = 120
+	}
+	if e = saveConfig(c); e != nil {
 		fmt.Fprintln(errOut, e)
 		return 1
 	}
@@ -319,11 +336,14 @@ func initialize(args []string, in io.Reader, out, errOut io.Writer) int {
 }
 func execute(args []string, in io.Reader, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "usage: tb init|doctor|run|notify|relay|status|retry|hook|mcp")
+		fmt.Fprintln(errOut, "usage: tb init|doctor|run|notify|alerts|relay|status|retry|hook|mcp|clients")
 		return 2
 	}
 	if args[0] == "init" {
 		return initialize(args[1:], in, out, errOut)
+	}
+	if args[0] == "alerts" {
+		return configureAlerts(args[1:], out, errOut)
 	}
 	if (args[0] == "hook" || args[0] == "mcp") && os.Getenv("TB_CONFIG") == "" {
 		if dir, e := os.UserConfigDir(); e == nil {
@@ -441,6 +461,7 @@ func execute(args []string, in io.Reader, out, errOut io.Writer) int {
 		f := flag.NewFlagSet("notify", flag.ContinueOnError)
 		f.SetOutput(errOut)
 		title := f.String("title", "TaskBridge", "title")
+		priority := priorityFlag(f, "priority", "p", c.priority("manual"))
 		if e := f.Parse(args[1:]); e != nil {
 			return 2
 		}
@@ -449,7 +470,7 @@ func execute(args []string, in io.Reader, out, errOut io.Writer) int {
 			fmt.Fprintln(errOut, "message required")
 			return 2
 		}
-		e = sendSourceNotification(c, "manual:"+newID(), ntfyMessage{Title: *title, Message: message, Priority: 3}, errOut)
+		e = sendSourceNotification(c, "manual:"+newID(), ntfyMessage{Title: *title, Message: message, Priority: *priority}, errOut)
 		if e != nil {
 			fmt.Fprintln(errOut, e)
 			return 1

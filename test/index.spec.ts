@@ -10,6 +10,11 @@ async function scheduled() {
   await worker.scheduled!({scheduledTime:Date.now(),cron:'*/2 * * * *'} as ScheduledEvent,bindings(),{} as ExecutionContext);
 }
 
+async function queuedPayload(id: string) {
+  const row=await env.DB.prepare('SELECT payload_json FROM notifications WHERE id=?').bind(id).first<{payload_json:string}>();
+  return JSON.parse(row!.payload_json) as {priority?:number;message:string};
+}
+
 beforeEach(async () => {
   await env.DB.exec(`
     CREATE TABLE IF NOT EXISTS clients (id TEXT PRIMARY KEY,name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,scopes TEXT NOT NULL,created_at INTEGER NOT NULL,revoked_at INTEGER);
@@ -29,6 +34,7 @@ describe('Watchdog and pending queue',()=>{
     await scheduled();await scheduled();
     expect((await env.DB.prepare("SELECT status FROM tasks WHERE id='lost-1'").first<{status:string}>())?.status).toBe('lost');
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM notifications WHERE id LIKE 'task:lost-1:lost:%'").first<{n:number}>())?.n).toBe(1);
+    expect((await queuedPayload(`task:lost-1:lost:${stale}`)).priority).toBe(5);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
   it('allows a relay to claim and ACK exactly once',async()=>{
@@ -59,6 +65,67 @@ describe('Watchdog and pending queue',()=>{
     expect((await (await request('/v1/tasks/recover-1/heartbeat','POST')).json() as {recovered:boolean}).recovered).toBe(true);
     await request('/v1/tasks/recover-1/heartbeat','POST');
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM notifications WHERE id LIKE 'task:recover-1:recovered:%'").first<{n:number}>())?.n).toBe(1);
+    const row=await env.DB.prepare("SELECT payload_json FROM notifications WHERE id LIKE 'task:recover-1:recovered:%'").first<{payload_json:string}>();
+    expect(JSON.parse(row!.payload_json).priority).toBe(3);
+  });
+});
+
+describe('notification priorities',()=>{
+  it.each([1,2,3,4,5])('keeps priority %i from question creation through the pending queue',async(priority)=>{
+    const response=await request('/v1/questions','POST',{question_type:'confirm',question:'Continue?',priority});
+    expect(response.status).toBe(201);
+    const created=await response.json() as {id:string};
+    expect((await queuedPayload(`question:${created.id}:created`)).priority).toBe(priority);
+    const claim=await (await request('/v1/notifications/claim','POST',{id:`question:${created.id}:created`})).json() as {notifications:Array<{payload:{priority:number}}>};
+    expect(claim.notifications[0].payload.priority).toBe(priority);
+  });
+  it('keeps the default question and manual priorities for older clients',async()=>{
+    const question=await (await request('/v1/questions','POST',{question_type:'text',question:'What next?'})).json() as {id:string};
+    const manual=await (await request('/v1/notify','POST',{message:'Task done'})).json() as {id:string};
+    expect((await queuedPayload(`question:${question.id}:created`)).priority).toBe(4);
+    expect((await queuedPayload(manual.id)).priority).toBe(3);
+    expect((await request('/v1/notifications','POST',{id:'legacy:notice',payload:{title:'Done',message:'Legacy client'}})).status).toBe(201);
+  });
+  it.each([1,5])('keeps manual priority %i in the relay payload',async(priority)=>{
+    const response=await request('/v1/notify','POST',{message:'Task done',priority});
+    expect(response.status).toBe(200);
+    const result=await response.json() as {id:string;priority:number};
+    expect(result.priority).toBe(priority);
+    expect((await queuedPayload(result.id)).priority).toBe(priority);
+  });
+  it.each([0,6,-1,1.5,'4',null,true,{},[]].map(priority=>({priority})))('rejects invalid priority $priority before creating questions or notifications',async({priority})=>{
+    expect((await request('/v1/questions','POST',{question_type:'confirm',question:'Continue?',priority})).status).toBe(400);
+    expect((await request('/v1/notify','POST',{message:'Task done',priority})).status).toBe(400);
+    expect((await request('/v1/notifications','POST',{id:'invalid:notice',payload:{title:'Done',message:'Task done',priority}})).status).toBe(400);
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM questions').first<{n:number}>())?.n).toBe(0);
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM notifications').first<{n:number}>())?.n).toBe(0);
+  });
+  it('retains the first fallback notification priority on retries',async()=>{
+    const body={id:'task:chosen:finished',payload:{title:'Done',message:'Task done',priority:1}};
+    expect((await request('/v1/notifications','POST',body)).status).toBe(201);
+    expect((await request('/v1/notifications','POST',{...body,payload:{...body.payload,priority:5}})).status).toBe(200);
+    expect((await queuedPayload(body.id)).priority).toBe(1);
+  });
+  it('uses the task priority policy for LOST and recovery exactly once',async()=>{
+    await request('/v1/tasks/start','POST',{id:'custom-policy',name:'Training',metadata:{notification_priorities:{lost:2,recovered:1}}});
+    const stale=Date.now()-421_000;
+    await env.DB.prepare("UPDATE tasks SET last_heartbeat=? WHERE id='custom-policy'").bind(stale).run();
+    await scheduled();await scheduled();
+    expect((await queuedPayload(`task:custom-policy:lost:${stale}`)).priority).toBe(2);
+    await request('/v1/tasks/custom-policy/heartbeat','POST');
+    await request('/v1/tasks/custom-policy/heartbeat','POST');
+    const recovered=await env.DB.prepare("SELECT payload_json FROM notifications WHERE id LIKE 'task:custom-policy:recovered:%'").all<{payload_json:string}>();
+    expect(recovered.results).toHaveLength(1);
+    expect(JSON.parse(recovered.results[0].payload_json).priority).toBe(1);
+  });
+  it.each(['{bad json','null','[]','{"notification_priorities":null}','{"notification_priorities":{"lost":"2","recovered":6}}'])('falls back safely for malformed task priority metadata %s',async(metadata)=>{
+    const stale=Date.now()-421_000;
+    await env.DB.prepare("INSERT INTO tasks (id,name,status,created_at,started_at,last_heartbeat,metadata_json) VALUES ('malformed-policy','Training','running',?,?,?,?)").bind(stale,stale,stale,metadata).run();
+    await scheduled();
+    expect((await queuedPayload(`task:malformed-policy:lost:${stale}`)).priority).toBe(5);
+    await request('/v1/tasks/malformed-policy/heartbeat','POST');
+    const row=await env.DB.prepare("SELECT payload_json FROM notifications WHERE id LIKE 'task:malformed-policy:recovered:%'").first<{payload_json:string}>();
+    expect(JSON.parse(row!.payload_json).priority).toBe(3);
   });
 });
 

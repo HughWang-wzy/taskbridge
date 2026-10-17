@@ -23,6 +23,7 @@ type hookInput struct {
 	ToolUseID            string `json:"tool_use_id"`
 	CWD                  string `json:"cwd"`
 	LastAssistantMessage string `json:"last_assistant_message"`
+	NotificationPriority int    `json:"notification_priority,omitempty"`
 	ToolInput            struct {
 		Questions []struct {
 			Title string `json:"title"`
@@ -37,8 +38,11 @@ func configureCodexHook(c *Config, args []string) error {
 	title := f.String("title", c.CodexStopTitle, "Stop notification title template")
 	body := f.String("body", c.CodexStopBody, "Stop notification body template")
 	final := f.String("final-output", "", "on or off")
+	successPriority := priorityFlag(f, "priority", "p", c.priority("success"))
+	questionPriority := priorityFlag(f, "question-priority", "", c.priority("question"))
+	interruptPriority := priorityFlag(f, "interrupt-priority", "", c.priority("interrupt"))
 	if e := f.Parse(args); e != nil {
-		return fmt.Errorf("usage: tb hook codex [--topic TEXT] [--title TEMPLATE] [--body TEMPLATE] [--final-output on|off]: %w", e)
+		return fmt.Errorf("usage: tb hook codex [--topic TEXT] [--title TEMPLATE] [--body TEMPLATE] [--final-output on|off] [--priority LEVEL] [--question-priority LEVEL] [--interrupt-priority LEVEL]: %w", e)
 	}
 	if f.NArg() > 0 {
 		return fmt.Errorf("unexpected hook argument: %s", f.Arg(0))
@@ -53,6 +57,23 @@ func configureCodexHook(c *Config, args []string) error {
 	if *final != "" {
 		c.CodexFinalOutput = *final == "on"
 	}
+	f.Visit(func(option *flag.Flag) {
+		kind, level := "", 0
+		switch option.Name {
+		case "priority", "p":
+			kind, level = "success", *successPriority
+		case "question-priority":
+			kind, level = "question", *questionPriority
+		case "interrupt-priority":
+			kind, level = "interrupt", *interruptPriority
+		}
+		if kind != "" {
+			if c.AlertPriorities == nil {
+				c.AlertPriorities = map[string]int{}
+			}
+			c.AlertPriorities[kind] = level
+		}
+	})
 	return saveConfig(*c)
 }
 
@@ -120,7 +141,7 @@ func stopNotification(c Config, input hookInput) ntfyMessage {
 	if c.CodexFinalOutput && output != "" && !strings.Contains(c.CodexStopBody, "{output}") {
 		body += "\n\n" + output
 	}
-	return ntfyMessage{Title: title, Message: body, Priority: 3}
+	return ntfyMessage{Title: title, Message: body, Priority: c.priority("success")}
 }
 
 func questionMarkerPath(question string) string {
@@ -157,13 +178,14 @@ func handleHook(c Config, in io.Reader, errOut io.Writer) int {
 			return 0
 		}
 		id := fmt.Sprintf("codex:question:%x", sha256.Sum256([]byte(input.SessionID+"\x00"+input.TurnID+"\x00"+input.ToolUseID)))
-		if e := sendSourceNotification(c, id, ntfyMessage{Title: "❓ Codex needs your answer", Message: question + "\nOpen Codex on your computer to answer.", Priority: 4}, errOut); e != nil {
+		if e := sendSourceNotification(c, id, ntfyMessage{Title: "❓ Codex needs your answer", Message: question + "\nOpen Codex on your computer to answer.", Priority: c.priority("question")}, errOut); e != nil {
 			fmt.Fprintln(errOut, "TaskBridge question reminder:", e)
 		}
 		return 0
 	}
 	if input.Event == "Interrupt" {
 		_ = os.Remove(turnStartPath(input))
+		input.NotificationPriority = c.priority("interrupt")
 		if e := spoolCodexInterrupt(input); e != nil {
 			fmt.Fprintln(errOut, "TaskBridge interrupt spool:", e)
 		}
@@ -306,6 +328,7 @@ func serveMCP(c Config, in io.Reader, out io.Writer) {
 			rpcReply(out, msg.ID, map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]string{"name": "taskbridge", "version": "1.0.0"}}, "")
 		case "tools/list":
 			createSchema := map[string]any{"type": "object", "properties": map[string]any{"question": map[string]any{"type": "string"}, "type": map[string]any{"type": "string", "enum": []string{"confirm", "choice", "text"}}, "options": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "timeout_seconds": map[string]any{"type": "integer", "minimum": 60, "maximum": 86400}, "session_id": map[string]any{"type": "string"}, "turn_id": map[string]any{"type": "string"}}, "required": []string{"question", "type"}}
+			createSchema["properties"].(map[string]any)["priority"] = map[string]any{"type": "integer", "minimum": 1, "maximum": 5, "description": "ntfy notification priority; omitted uses this client's question setting"}
 			idSchema := map[string]any{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "required": []string{"id"}}
 			rpcReply(out, msg.ID, map[string]any{"tools": []any{
 				map[string]any{"name": "ask_user", "description": "Ask the user on their phone and wait for an answer. Use for confirm, choice, or free text decisions.", "inputSchema": createSchema},
@@ -325,6 +348,7 @@ func serveMCP(c Config, in io.Reader, out io.Writer) {
 					TurnID    string   `json:"turn_id"`
 					ID        string   `json:"id"`
 					Answer    string   `json:"answer"`
+					Priority  *int     `json:"priority"`
 				} `json:"arguments"`
 			}
 			if e := json.Unmarshal(msg.Params, &call); e != nil {
@@ -354,6 +378,14 @@ func serveMCP(c Config, in io.Reader, out io.Writer) {
 				rpcReply(out, msg.ID, nil, "invalid tool call")
 				continue
 			}
+			priority := c.priority("question")
+			if call.Arguments.Priority != nil {
+				priority = *call.Arguments.Priority
+				if priority < 1 || priority > 5 {
+					rpcReply(out, msg.ID, nil, "priority must be an integer from 1 to 5")
+					continue
+				}
+			}
 			timeout := call.Arguments.Timeout
 			if timeout <= 0 {
 				timeout = 3600
@@ -361,7 +393,7 @@ func serveMCP(c Config, in io.Reader, out io.Writer) {
 			if timeout > 86400 {
 				timeout = 86400
 			}
-			data, e := api(c, "POST", "/v1/questions", map[string]any{"question_type": call.Arguments.Type, "question": call.Arguments.Question, "options": call.Arguments.Options, "timeout_seconds": timeout, "session_id": call.Arguments.SessionID, "turn_id": call.Arguments.TurnID})
+			data, e := api(c, "POST", "/v1/questions", map[string]any{"question_type": call.Arguments.Type, "question": call.Arguments.Question, "options": call.Arguments.Options, "timeout_seconds": timeout, "session_id": call.Arguments.SessionID, "turn_id": call.Arguments.TurnID, "priority": priority})
 			if e != nil {
 				rpcReply(out, msg.ID, map[string]any{"isError": true, "content": []any{map[string]string{"type": "text", "text": e.Error()}}}, "")
 				continue

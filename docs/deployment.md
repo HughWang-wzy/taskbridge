@@ -81,6 +81,63 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 The installer checks the release SHA-256 and runs `tb doctor`. It keeps an existing configuration by default. At least one computer must run `tb relay` to deliver queued notices. An interrupted Codex turn first spools locally, so that computer also needs a relay. On Linux, ordinary users get a systemd user service and root prefers a system service. If no service manager is available, the installer starts a temporary background relay and warns that it will not restart after a reboot; use the host's startup manager for persistence.
 
+## Choose reminder levels
+
+TaskBridge attaches an ntfy priority to each notification. Configure different levels for different events, then choose their sound and vibration on the phone. Run `tb alerts` to display the effective settings. This example makes successful completion and interrupted Codex turns quieter:
+
+```bash
+tb alerts --success low --failure high --question high --interrupt low --lost urgent --manual normal
+tb alerts
+```
+
+The command saves the defaults to the client `config.json` and, when present, the Codex `codex.json` on this computer. When `TB_CONFIG` is explicitly set, it updates only that file. Settings are local to each computer; apply them on other computers as needed. A running Codex MCP server reads settings at startup, so restart Codex/MCP after changing question defaults. Completion Hooks read the new values on their next invocation.
+
+| Level | Accepted values | Android's default behavior |
+| --- | --- | --- |
+| Minimum | `1`, `min`, `silent` | No sound or vibration; placed in other notifications |
+| Low | `2`, `low` | No sound or vibration |
+| Normal | `3`, `normal`, `default` | Default sound and short vibration |
+| High | `4`, `high` | Sound, longer vibration, and a pop-over |
+| Urgent | `5`, `urgent`, `max` | Sound, longer vibration, and a pop-over |
+
+Names are case-insensitive. These are [ntfy's priority defaults](https://docs.ntfy.sh/publish/#message-priority); phone settings can change the behavior. `silent` selects priority 1 and does not force the phone to obey a particular sound setting.
+
+Existing defaults remain unchanged until you configure them:
+
+| Event | Default |
+| --- | --- |
+| Successful completion, recovered task, manual notification | `normal` (3) |
+| Failure, question awaiting an answer, interrupted Codex turn | `high` (4) |
+| Task loses contact (`LOST`) | `urgent` (5) |
+
+To override one manual notification:
+
+```bash
+tb notify -p low --title Test 'Quiet notification'
+```
+
+For a training job, choose separate successful-completion, failure, and lost-contact levels:
+
+```bash
+tb run -n training --priority high --failure-priority urgent --lost-priority urgent -- python train.py
+```
+
+For `tb run`, `--priority` (or `-p`) affects successful completion only. It does not bypass the existing 60-second threshold for successful-task notifications; failures and lost-contact events use their own levels. Recovered tasks use the successful-completion level. The relay sends the priority stored with each queued notification, so changing defaults does not change already queued messages.
+
+For Codex, change completion, question, and interruption levels without changing the notification text:
+
+```bash
+tb hook codex --priority low --question-priority high --interrupt-priority low
+```
+
+You can combine these flags with the title and body flags below. After changing Hooks, restart Codex and review/trust any updated Hooks. Upgrade the `tb` client on each sending computer. Custom `LOST` levels and MCP question levels also need the updated Worker deployed; no D1 migration is needed. From the deployment checkout with its existing `wrangler.jsonc`, run `npm run deploy` after updating the source.
+
+### Set up your phone
+
+**Android:** Open ntfy → Settings → **Channel settings**, or open Android's notification settings for ntfy. Each priority has its own channel; choose sound, vibration, pop-over, and whether to override Do Not Disturb for that channel. A higher priority alone does not guarantee it bypasses your system settings. See [ntfy's phone configuration guide](https://docs.ntfy.sh/subscribe/phone/#message-priority).
+
+**iPhone:** Enable ntfy notifications and sounds in iOS Settings, and check your Focus configuration. The current stable ntfy iOS app is v1.7.0 as of October 18, 2026; priority-5 critical alerts that bypass silent mode and Do Not Disturb are listed for the unreleased v1.8.0. Do not rely on `urgent` forcing an audible alert on the current stable app. It also does not offer Android's per-priority notification channels. See the [official release notes](https://docs.ntfy.sh/releases/#ntfy-ios-app-v180-unreleased) and [current iOS settings implementation](https://github.com/binwiederhier/ntfy-ios/blob/v1.7.0/ntfy/Views/Settings/SettingsView.swift).
+
 ## Customize Codex alerts
 
 The installer offers completion notification settings when you enable Codex integration. You can also change them later:

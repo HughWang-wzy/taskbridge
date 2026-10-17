@@ -63,7 +63,11 @@ func flushCodexInterrupts(c Config, dir string) error {
 			return e
 		}
 		id := fmt.Sprintf("codex:%x", sha256.Sum256([]byte(input.SessionID+"\x00"+input.TurnID+"\x00Interrupt")))
-		notice := ntfyMessage{Title: "⚠️ Codex interrupted", Message: "Session: " + input.SessionID + "\nTurn: " + input.TurnID, Priority: 4}
+		priority := input.NotificationPriority
+		if priority < 1 || priority > 5 {
+			priority = c.priority("interrupt")
+		}
+		notice := ntfyMessage{Title: "⚠️ Codex interrupted", Message: "Session: " + input.SessionID + "\nTurn: " + input.TurnID, Priority: priority}
 		if _, e = api(c, "POST", "/v1/notifications", map[string]any{"id": id, "payload": notice}); e != nil {
 			return e
 		}
