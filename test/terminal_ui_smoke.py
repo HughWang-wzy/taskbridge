@@ -97,7 +97,11 @@ def main():
                     try:
                         result = self.proc.wait(timeout=8)
                         assert result == code, (result, self.output[-3000:])
-                        assert termios.tcgetattr(self.slave) == self.original, "terminal mode was not restored"
+                        restored = termios.tcgetattr(self.slave)
+                        differences = {name: (before, after) for name, before, after in zip(
+                            ("iflag", "oflag", "cflag", "lflag", "ispeed", "ospeed", "cc"), self.original, restored
+                        ) if before != after}
+                        assert not differences, f"terminal mode was not restored: {differences!r}"
                     finally:
                         if self.proc.poll() is None:
                             self.proc.kill()
