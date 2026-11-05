@@ -120,22 +120,24 @@ interface NotificationInput {
 	actions?: Array<Record<string, unknown>>;
 }
 
-async function queueNotification(env: Env, id: string, input: NotificationInput): Promise<boolean> {
+const NOTIFICATION_WINDOW_MS = 5 * 60 * 1000;
+
+async function queueNotification(env: Env, id: string, input: NotificationInput, createdAt = nowMs()): Promise<boolean> {
 	const now=nowMs();
 	const result=await env.DB.prepare('INSERT OR IGNORE INTO notifications (id,payload_json,created_at,next_attempt_at) VALUES (?,?,?,?)')
-		.bind(id,JSON.stringify(input),now,now).run();
+		.bind(id,JSON.stringify(input),Math.min(createdAt,now),now).run();
 	return result.meta.changes>0;
 }
 
 
-async function claimNotifications(env: Env, limit: number, requestedId?: string): Promise<Array<{id:string;claim_token:string;payload:NotificationInput}>> {
+async function claimNotifications(env: Env, limit: number, requestedId?: string): Promise<Array<{id:string;claim_token:string;expires_at:number;payload:NotificationInput}>> {
 	const now=nowMs();
 	const due=requestedId
-		? await env.DB.prepare('SELECT id,payload_json FROM notifications WHERE id=? AND sent_at IS NULL AND next_attempt_at <= ? AND lease_until < ?')
-			.bind(requestedId,now,now).all<{id:string;payload_json:string}>()
-		: await env.DB.prepare('SELECT id,payload_json FROM notifications WHERE sent_at IS NULL AND next_attempt_at <= ? AND lease_until < ? ORDER BY created_at LIMIT ?')
-			.bind(now,now,limit).all<{id:string;payload_json:string}>();
-	const claimed: Array<{id:string;claim_token:string;payload:NotificationInput}>=[];
+		? await env.DB.prepare('SELECT id,payload_json,created_at FROM notifications WHERE id=? AND sent_at IS NULL AND next_attempt_at <= ? AND lease_until < ? AND created_at > ?')
+			.bind(requestedId,now,now,now-NOTIFICATION_WINDOW_MS).all<{id:string;payload_json:string;created_at:number}>()
+		: await env.DB.prepare('SELECT id,payload_json,created_at FROM notifications WHERE sent_at IS NULL AND next_attempt_at <= ? AND lease_until < ? AND created_at > ? ORDER BY created_at LIMIT ?')
+			.bind(now,now,now-NOTIFICATION_WINDOW_MS,limit).all<{id:string;payload_json:string;created_at:number}>();
+	const claimed: Array<{id:string;claim_token:string;expires_at:number;payload:NotificationInput}>=[];
 	for (const item of due.results) {
 		const questionId=item.id.match(/^question:([^:]+):created$/)?.[1];
 		if (questionId) {
@@ -146,9 +148,9 @@ async function claimNotifications(env: Env, limit: number, requestedId?: string)
 			}
 		}
 		const claimToken=crypto.randomUUID();
-		const result=await env.DB.prepare('UPDATE notifications SET lease_until=?,claim_token=? WHERE id=? AND sent_at IS NULL AND lease_until < ? AND next_attempt_at <= ?')
-			.bind(now+120000,claimToken,item.id,now,now).run();
-		if (result.meta.changes) claimed.push({id:item.id,claim_token:claimToken,payload:JSON.parse(item.payload_json) as NotificationInput});
+		const result=await env.DB.prepare('UPDATE notifications SET lease_until=?,claim_token=? WHERE id=? AND sent_at IS NULL AND lease_until < ? AND next_attempt_at <= ? AND created_at > ?')
+			.bind(now+120000,claimToken,item.id,now,now,now-NOTIFICATION_WINDOW_MS).run();
+		if (result.meta.changes) claimed.push({id:item.id,claim_token:claimToken,expires_at:item.created_at+NOTIFICATION_WINDOW_MS,payload:JSON.parse(item.payload_json) as NotificationInput});
 	}
 	return claimed;
 }
@@ -167,7 +169,7 @@ export default {
 		if (request.method==='POST' && url.pathname==='/v1/notifications') {
 			const auth=await authorize(request,env,'notify:write');
 			if (!auth) return json({ok:false,error:'unauthorized'},401);
-			let body: {id?:string;payload?:NotificationInput};
+			let body: {id?:string;payload?:NotificationInput;created_at?:number};
 			try {body=await request.json() as typeof body} catch {return json({ok:false,error:'invalid_json'},400)}
 			if (!body.id || body.id.length>200 || !/^[a-zA-Z0-9:_-]+$/.test(body.id) ||
 				!body.payload || typeof body.payload.title!=='string' || typeof body.payload.message!=='string' ||
@@ -175,7 +177,8 @@ export default {
 				return json({ok:false,error:'invalid_notification'},400);
 			}
 			if (body.payload.priority !== undefined && !validPriority(body.payload.priority)) return json({ok:false,error:'invalid_priority'},400);
-			const created=await queueNotification(env,body.id,body.payload);
+			if (body.created_at !== undefined && (!Number.isSafeInteger(body.created_at) || body.created_at <= 0)) return json({ok:false,error:'invalid_created_at'},400);
+			const created=await queueNotification(env,body.id,body.payload,body.created_at);
 			return json({ok:true,id:body.id,queued:true,idempotent:!created},created?201:200);
 		}
 		if (request.method==='POST' && url.pathname==='/v1/notifications/claim') {
@@ -194,8 +197,8 @@ export default {
 			let body: {claim_token?:string};
 			try {body=await request.json() as typeof body} catch {return json({ok:false,error:'invalid_json'},400)}
 			const id=decodeURIComponent(deliveryMatch[1]);
-			const row=await env.DB.prepare('SELECT sent_at,claim_token,lease_until,attempts FROM notifications WHERE id=?')
-				.bind(id).first<{sent_at:number|null;claim_token:string|null;lease_until:number;attempts:number}>();
+			const row=await env.DB.prepare('SELECT sent_at,claim_token,lease_until,attempts,created_at FROM notifications WHERE id=?')
+				.bind(id).first<{sent_at:number|null;claim_token:string|null;lease_until:number;attempts:number;created_at:number}>();
 			if (!row) return json({ok:false,error:'not_found'},404);
 			if (row.sent_at!==null) return json({ok:true,idempotent:true});
 			if (!body.claim_token || body.claim_token!==row.claim_token || row.lease_until<nowMs()) return json({ok:false,error:'stale_claim'},409);
@@ -204,7 +207,7 @@ export default {
 					.bind(nowMs(),id,body.claim_token,nowMs()).run();
 				return updated.meta.changes ? json({ok:true}) : json({ok:false,error:'stale_claim'},409);
 			}
-			const delay=Math.min(3600,60*2**Math.min(row.attempts,6))*1000;
+			const delay=Math.max(0,Math.min(60*2**Math.min(row.attempts,2)*1000,row.created_at+NOTIFICATION_WINDOW_MS-nowMs()));
 			const updated=await env.DB.prepare('UPDATE notifications SET attempts=attempts+1,next_attempt_at=?,lease_until=0,claim_token=NULL WHERE id=? AND sent_at IS NULL AND claim_token=? AND lease_until>=?')
 				.bind(nowMs()+delay,id,body.claim_token,nowMs()).run();
 			return updated.meta.changes ? json({ok:true,retry_after_ms:delay}) : json({ok:false,error:'stale_claim'},409);
@@ -212,9 +215,9 @@ export default {
 		if (request.method==='GET' && url.pathname==='/v1/doctor') {
 			const auth=await authorize(request,env,'tasks:read');
 			if (!auth) return json({ok:false,error:'unauthorized'},401);
-			const row=await env.DB.prepare('SELECT COUNT(*) AS pending, SUM(CASE WHEN attempts > 0 THEN 1 ELSE 0 END) AS failed FROM notifications WHERE sent_at IS NULL')
-				.first<{pending:number;failed:number|null}>();
-			return json({ok:true,service:'taskbridge',delivery_mode:'client_relay',pending_notifications:row?.pending??0,failed_notification_attempts:row?.failed??0});
+			const row=await env.DB.prepare('SELECT SUM(CASE WHEN created_at > ? THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN created_at > ? AND attempts > 0 THEN 1 ELSE 0 END) AS failed, SUM(CASE WHEN created_at <= ? THEN 1 ELSE 0 END) AS expired FROM notifications WHERE sent_at IS NULL')
+				.bind(nowMs()-NOTIFICATION_WINDOW_MS,nowMs()-NOTIFICATION_WINDOW_MS,nowMs()-NOTIFICATION_WINDOW_MS).first<{pending:number|null;failed:number|null;expired:number|null}>();
+			return json({ok:true,service:'taskbridge',delivery_mode:'client_relay',pending_notifications:row?.pending??0,failed_notification_attempts:row?.failed??0,expired_notifications:row?.expired??0});
 		}
 
 		if (request.method === 'POST' && url.pathname === '/v1/codex/events') {

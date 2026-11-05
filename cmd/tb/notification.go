@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +14,15 @@ import (
 	"unicode/utf8"
 )
 
+var errNotificationExpired = errors.New("notification delivery window expired")
+
 type ntfyMessage struct {
-	Title    string           `json:"title"`
-	Message  string           `json:"message"`
-	Priority int              `json:"priority,omitempty"`
-	Tags     []string         `json:"tags,omitempty"`
-	Actions  []map[string]any `json:"actions,omitempty"`
+	ExpiresAt int64            `json:"-"`
+	Title     string           `json:"title"`
+	Message   string           `json:"message"`
+	Priority  int              `json:"priority,omitempty"`
+	Tags      []string         `json:"tags,omitempty"`
+	Actions   []map[string]any `json:"actions,omitempty"`
 }
 
 func publishNtfy(c Config, message ntfyMessage) error {
@@ -54,7 +58,17 @@ func publishNtfy(c Config, message ntfyMessage) error {
 	if e != nil {
 		return e
 	}
-	req, e := http.NewRequest("POST", endpoint, bytes.NewReader(body))
+	ctx := context.Background()
+	if message.ExpiresAt > 0 {
+		deadline := time.UnixMilli(message.ExpiresAt)
+		if !time.Now().Before(deadline) {
+			return errNotificationExpired
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, deadline)
+		defer cancel()
+	}
+	req, e := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if e != nil {
 		return e
 	}
@@ -79,12 +93,13 @@ func publishNtfy(c Config, message ntfyMessage) error {
 }
 
 func sendSourceNotification(c Config, id string, message ntfyMessage, errOut io.Writer) error {
+	createdAt := time.Now().UnixMilli()
 	if e := publishNtfy(c, message); e == nil {
 		return nil
 	} else {
 		fmt.Fprintf(errOut, "TaskBridge: direct ntfy failed, queueing notification: %v\n", e)
 	}
-	body := map[string]any{"id": id, "payload": message}
+	body := map[string]any{"id": id, "payload": message, "created_at": createdAt}
 	if _, e := api(c, "POST", "/v1/notifications", body); e == nil {
 		return nil
 	}
@@ -95,6 +110,7 @@ func sendSourceNotification(c Config, id string, message ntfyMessage, errOut io.
 }
 
 type relayItem struct {
+	ExpiresAt  int64       `json:"expires_at"`
 	ID         string      `json:"id"`
 	ClaimToken string      `json:"claim_token"`
 	Payload    ntfyMessage `json:"payload"`
@@ -122,8 +138,15 @@ func relayOnceWithID(c Config, id string) (int, error) {
 	delivered := 0
 	var firstErr error
 	for _, item := range response.Notifications {
+		if item.ExpiresAt > 0 && time.Now().UnixMilli() >= item.ExpiresAt {
+			continue
+		}
+		item.Payload.ExpiresAt = item.ExpiresAt
 		route := "/v1/notifications/" + url.PathEscape(item.ID)
 		if e = publishNtfy(c, item.Payload); e != nil {
+			if errors.Is(e, errNotificationExpired) {
+				continue
+			}
 			_, failErr := api(c, "POST", route+"/fail", map[string]any{"claim_token": item.ClaimToken})
 			if failErr != nil {
 				e = fmt.Errorf("publish: %w; release claim: %v", e, failErr)

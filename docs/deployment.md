@@ -246,3 +246,7 @@ npm run deploy
 ```
 
 Use a long random admin secret and keep it private. `wrangler.jsonc`, `.local/`, and `.dev.vars` are ignored by Git.
+
+## Delivery window
+
+Notification retries stop five minutes after the original creation time. Expired D1 rows remain for audit and are reported separately as `expired_notifications`. Offline replay retains the source timestamp; expired local notification requests and Interrupt spool files are archived under `expired/`. Task persistence and question answer deadlines are independent of notification delivery expiry. Update clients on other hosts to preserve offline timestamps and enforce per-publication deadlines.

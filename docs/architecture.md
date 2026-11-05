@@ -50,3 +50,7 @@ Native Codex questions remain Codex-owned. A supported `PreToolUse` event can mi
 ## API overview
 
 The Worker exposes task start/heartbeat/finish/status, Codex event ingestion, question creation/status/answers, client creation, and notification enqueue/claim/ACK/fail endpoints. Authenticated requests use `Authorization: Bearer <client-token>`. The `tb` CLI and MCP server are the supported clients; see `src/index.ts` for the exact request schemas and route validation.
+
+## Notification delivery expiry
+
+Notifications have a five-minute delivery window from their original creation time. Failed delivery may retry only inside that window. At or after the deadline the Worker no longer offers the record to relays, including targeted claims; D1 retains the unsent row for audit, and `/v1/doctor` reports it separately as `expired_notifications`. A delayed local replay carries its original `created_at`, so reconnecting does not restart the window. Local expired notification requests and Interrupt spool files move into an `expired/` subdirectory. Task/event persistence and question answer deadlines remain independent of notification delivery expiry. Relays receive `expires_at` and check it before each publication.

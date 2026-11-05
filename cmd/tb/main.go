@@ -119,6 +119,13 @@ func api(c Config, method, path string, body any) ([]byte, error) {
 	return data, nil
 }
 func queue(c Config, method, path string, body any) error {
+	if path == "/v1/notifications" {
+		var err error
+		body, err = prepareNotificationBody(body, time.Now())
+		if err != nil {
+			return err
+		}
+	}
 	if e := os.MkdirAll(c.QueueDir, 0700); e != nil {
 		return e
 	}
@@ -174,6 +181,28 @@ func flushQueue(c Config) error {
 			if e = json.Unmarshal(q.Body, &body); e != nil {
 				return e
 			}
+		}
+		if q.Path == "/v1/notifications" {
+			path := filepath.Join(c.QueueDir, q.Filename)
+			info, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			prepared, err := prepareNotificationBody(body, info.ModTime())
+			if err != nil {
+				return err
+			}
+			created, ok := prepared["created_at"].(float64)
+			if !ok || created <= 0 {
+				return fmt.Errorf("invalid queued notification creation time")
+			}
+			if time.Since(time.UnixMilli(int64(created))) >= notificationWindow {
+				if err = archiveExpiredNotification(path); err != nil {
+					return err
+				}
+				continue
+			}
+			body = prepared
 		}
 		if _, e = api(c, q.Method, q.Path, body); e != nil {
 			return e

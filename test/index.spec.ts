@@ -219,3 +219,38 @@ describe('relay failure and targeted claim',()=>{
     expect(result.notifications.map(item=>item.id)).toEqual([`question:${created.id}:created`]);
   });
 });
+
+describe('five-minute delivery window',()=>{
+  it('never claims expired records, including targeted requests, and keeps them for audit',async()=>{
+    const old=Date.now()-300_001;
+    await env.DB.prepare('INSERT INTO notifications (id,payload_json,created_at,next_attempt_at) VALUES (?,?,?,?)').bind('expired',JSON.stringify({title:'Old',message:'Old'}),old,old).run();
+    for(const body of [{limit:10},{id:'expired'}]) {
+      const result=await (await request('/v1/notifications/claim','POST',body)).json() as {notifications:unknown[]};
+      expect(result.notifications).toHaveLength(0);
+    }
+    expect(await env.DB.prepare("SELECT id FROM notifications WHERE id='expired'").first()).not.toBeNull();
+    const doctor=await (await request('/v1/doctor')).json() as {pending_notifications:number;expired_notifications:number};
+    expect(doctor.pending_notifications).toBe(0);expect(doctor.expired_notifications).toBe(1);
+  });
+  it('preserves the offline creation time and returns the delivery deadline',async()=>{
+    const created=Date.now()-240_000;
+    await request('/v1/notifications','POST',{id:'offline',created_at:created,payload:{title:'Offline',message:'Offline'}});
+    const claim=await (await request('/v1/notifications/claim','POST',{id:'offline'})).json() as {notifications:Array<{expires_at:number}>};
+    expect(claim.notifications[0].expires_at).toBe(created+300_000);
+    const item=(await (await request('/v1/notifications/claim','POST',{limit:10})).json() as {notifications:unknown[]});expect(item.notifications).toHaveLength(0);
+    await request('/v1/notifications','POST',{id:'offline-old',created_at:Date.now()-400_000,payload:{title:'Old',message:'Old'}});
+    expect((await (await request('/v1/notifications/claim','POST',{id:'offline-old'})).json() as {notifications:unknown[]}).notifications).toHaveLength(0);
+  });
+  it('expires at exactly five minutes and schedules retries within the original window',async()=>{
+    const now=Date.now();vi.spyOn(Date,'now').mockReturnValue(now);
+    try {
+      await request('/v1/notifications','POST',{id:'boundary',created_at:now-300_000,payload:{title:'Boundary',message:'Old'}});
+      expect((await (await request('/v1/notifications/claim','POST',{id:'boundary'})).json() as {notifications:unknown[]}).notifications).toHaveLength(0);
+      await request('/v1/notifications','POST',{id:'retry',created_at:now-290_000,payload:{title:'Retry',message:'Retry'}});
+      const item=(await (await request('/v1/notifications/claim','POST',{id:'retry'})).json() as {notifications:Array<{id:string;claim_token:string}>}).notifications[0];
+      await request('/v1/notifications/retry/fail','POST',{claim_token:item.claim_token});
+      const row=await env.DB.prepare("SELECT next_attempt_at FROM notifications WHERE id='retry'").first<{next_attempt_at:number}>();
+      expect(row!.next_attempt_at).toBeLessThanOrEqual(now+10_000);
+    } finally {vi.restoreAllMocks();}
+  });
+});

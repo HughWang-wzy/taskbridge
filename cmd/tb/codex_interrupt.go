@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func codexInterruptDir(configFile string) string {
@@ -47,6 +48,16 @@ func flushCodexInterrupts(c Config, dir string) error {
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())
+		info, e := entry.Info()
+		if e != nil {
+			return e
+		}
+		if time.Since(info.ModTime()) >= notificationWindow {
+			if e = archiveExpiredNotification(path); e != nil {
+				return e
+			}
+			continue
+		}
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return e
@@ -68,7 +79,7 @@ func flushCodexInterrupts(c Config, dir string) error {
 			priority = c.priority("interrupt")
 		}
 		notice := ntfyMessage{Title: "⚠️ Codex interrupted", Message: "Session: " + input.SessionID + "\nTurn: " + input.TurnID, Priority: priority}
-		if _, e = api(c, "POST", "/v1/notifications", map[string]any{"id": id, "payload": notice}); e != nil {
+		if _, e = api(c, "POST", "/v1/notifications", map[string]any{"id": id, "payload": notice, "created_at": info.ModTime().UnixMilli()}); e != nil {
 			return e
 		}
 		if e = os.Remove(path); e != nil {
