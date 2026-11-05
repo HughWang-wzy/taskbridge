@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestShortSuccessfulRunDoesNotNotify(t *testing.T) {
@@ -81,5 +82,38 @@ func TestRelayClaimsPublishesAndAcknowledges(t *testing.T) {
 	count, e := relayOnce(cfg)
 	if e != nil || count != 1 || acked != "claim-1" || published["topic"] != "phone-topic" || published["priority"] != float64(5) {
 		t.Fatalf("count=%d err=%v ack=%s published=%v", count, e, acked, published)
+	}
+}
+
+func TestPublishFitsNtfyUTF8ByteLimit(t *testing.T) {
+	for _, original := range []string{strings.Repeat("x", 4095), strings.Repeat("x", 4096), strings.Repeat("中", 2000), strings.Repeat("a🙂", 1200)} {
+		t.Run(string([]rune(original)[:1]), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var got ntfyMessage
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Error(err)
+					w.WriteHeader(400)
+					return
+				}
+				if len(got.Message) >= 4096 || !utf8.ValidString(got.Message) {
+					http.Error(w, "message exceeds ntfy byte limit", 500)
+					return
+				}
+				if len(original) < 4096 && got.Message != original {
+					t.Error("short message changed")
+				}
+				if len(original) >= 4096 && !strings.HasSuffix(got.Message, "… [truncated for ntfy]") {
+					t.Error("truncation must be visible")
+				}
+			}))
+			defer server.Close()
+			message := ntfyMessage{Title: "Title", Message: original}
+			if err := publishNtfy(Config{NtfyURL: server.URL, NtfyTopic: "topic"}, message); err != nil {
+				t.Fatal(err)
+			}
+			if message.Message != original {
+				t.Fatal("stored payload was changed")
+			}
+		})
 	}
 }

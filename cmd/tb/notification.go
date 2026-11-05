@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type ntfyMessage struct {
@@ -21,6 +22,20 @@ type ntfyMessage struct {
 }
 
 func publishNtfy(c Config, message ntfyMessage) error {
+	// ntfy's text limit is bytes, not characters. Keep this at the common
+	// publication boundary so persisted payloads also recover on their next retry.
+	// message is a value copy: the full queued payload remains available in D1.
+	// Leave one byte below ntfy's peek boundary: exactly 4096 bytes may be
+	// interpreted as an attachment rather than ordinary notification text.
+	const messageLimit = 4095
+	const suffix = "\n… [truncated for ntfy]"
+	if len(message.Message) > messageLimit {
+		end := messageLimit - len(suffix)
+		for end > 0 && !utf8.RuneStart(message.Message[end]) {
+			end--
+		}
+		message.Message = message.Message[:end] + suffix
+	}
 	if strings.TrimSpace(c.NtfyTopic) == "" {
 		return errors.New("ntfy topic is not configured; run tb init --ntfy-topic TOPIC")
 	}
